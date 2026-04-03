@@ -1,8 +1,9 @@
-streamlit
 fastapi
 uvicorn
 requests
+python-multipart
+langchain
 langchain-groq
-duckduckgo-search
-PyPDF2
-python-dotenv
+langchain-community
+tavily-python
+streamlit
