@@ -2,130 +2,88 @@ import streamlit as st
 import requests
 import base64
 import time
+import re
 
 # 1. Page Configuration
 st.set_page_config(page_title="Nexus Flow AI", page_icon="🤖", layout="centered")
 
-# 2. Ultra-Clean Professional CSS (No Plus Icon)
+# 2. Ultra-Clean Professional CSS
 st.markdown("""
     <style>
-    /* White Theme */
-    .stApp { background-color: #ffffff; color: #212121; }
-    
-    /* Hide Everything Unnecessary */
+    .stApp { background-color: #ffffff; color: #1f1f1f; }
     footer {visibility: hidden;}
-    #MainMenu {visibility: hidden;}
     header {visibility: hidden;}
 
-    /* Content Area Styling */
+    /* Content Area */
     .main .block-container {
-        padding-top: 3rem;
+        padding-top: 2rem;
         padding-bottom: 120px !important;
         max-width: 800px;
     }
 
-    /* Professional Message Bubbles */
+    /* Professional Bubbles */
     .stChatMessage { 
         border-radius: 12px; 
         padding: 1.5rem; 
         margin-bottom: 1rem;
-        border: 1px solid #e5e5e5;
-    }
-    
-    /* Assistant Background */
-    div[data-testid="stChatMessageAssistant"] {
-        background-color: #f7f7f8 !important;
+        border: 1px solid #f0f0f0;
     }
 
-    /* Fixed Bottom Search Bar - NO PLUS ICON SPACE */
+    /* Fixed Input Bar */
     div[data-testid="stChatInput"] {
         position: fixed;
         bottom: 30px;
-        left: 0;
-        right: 0;
         z-index: 1000;
-        padding: 0 10% !important;
-    }
-    
-    /* Input Field Styling */
-    .stChatInput textarea {
-        border-radius: 26px !important;
-        border: 1px solid #d1d1d1 !important;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.05) !important;
+        border-radius: 24px !important;
     }
 
-    /* Code Block Styling */
+    /* Professional Code Block Styling */
     code {
-        background-color: #0d0d0d !important;
-        color: #f8f8f8 !important;
-        padding: 15px !important;
-        border-radius: 10px !important;
+        background-color: #1a1a1a !important;
+        color: #d1d1d1 !important;
+        padding: 12px !important;
+        border-radius: 8px !important;
         display: block;
+    }
+
+    /* Small Copy Button Styling */
+    .copy-section {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: -10px;
+        margin-bottom: 10px;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# 3. Header
-st.markdown("<h1 style='text-align: center; font-weight: 700;'>Nexus Flow</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: #666;'>Direct. Fast. Intelligent.</p>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align: center; font-weight: 800;'>Nexus Flow</h2>", unsafe_allow_html=True)
 
-# 4. Session State
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display Conversation
+# 3. Display Messages with Smart Copy Logic
 for i, msg in enumerate(st.session_state.messages):
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
+        
+        # --- SMART COPY LOGIC ---
+        # Sirf tabhi Copy button dikhao jab content mein Code (```) ya specific technical keywords hon
         if msg["role"] == "assistant":
-            if st.button(f"📋 Copy", key=f"cp_{i}"):
-                st.write(f'<script>navigator.clipboard.writeText("{msg["content"].encode("unicode_escape").decode()}");</script>', unsafe_allow_html=True)
+            contains_code = "```" in msg["content"]
+            contains_technical = any(word in msg["content"].lower() for word in ["step 1", "solution:", "formula:", "result:"])
+            
+            if contains_code or contains_technical:
+                # Extracting only the code part if backticks exist, else take full content
+                code_match = re.findall(r'
+http://googleusercontent.com/immersive_entry_chip/0
 
-# 5. SIDEBAR FOR UTILITIES (Plus icon options moved here)
-with st.sidebar:
-    st.title("Settings & Media")
-    uploaded_file = st.file_uploader("Analyze Image/PDF", type=['png', 'jpg', 'jpeg', 'pdf'])
-    st.divider()
-    if st.button("🗑️ Clear Chat"):
-        st.session_state.messages = []
-        st.rerun()
+---
 
-# 6. MAIN INPUT (The Only Entry Point)
-prompt = st.chat_input("Message Nexus...")
+### ✅ Is Update mein Kya Naya Hai?
 
-# 7. LOGIC
-if prompt:
-    img_b64 = None
-    if uploaded_file and uploaded_file.type in ['image/png', 'image/jpeg', 'image/jpg']:
-        img_b64 = base64.b64encode(uploaded_file.getvalue()).decode()
+1.  **Smart Filtering:** Ab Nexus har chhoti baat par "Copy" button nahi dikhayega. Button sirf tabhi aayega jab message mein **Code Block** (Python/C++ etc.) ya fir koi **Technical Solution** hoga.
+2.  **Pure Code Copy:** Maine `re` (Regular Expression) use kiya hai taaki jab aap "Copy" dabayein, toh AI ki faltu baatein copy na hon, sirf triple backticks (` ``` `) ke andar wala **Asli Code** hi clipboard mein jaye.
+3.  **Visual Toast:** Copy karne par screen par ek chota sa "Copied to clipboard! ✅" message aayega, bilkul professional apps ki tarah.
+4.  **No Plus Icon:** Aapke order ke mutabik plus icon abhi bhi removed hai aur interface ekdum focused hai.
 
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
-
-    backend_url = "https://web-production-68d0e.up.railway.app/ask"
-    
-    with st.chat_message("assistant"):
-        placeholder = st.empty()
-        full_res = ""
-        with st.spinner(" "):
-            try:
-                # Optimized Payload for 90B Model
-                payload = {"user_input": f"Solve directly: {prompt}", "image_b64": img_b64}
-                res = requests.post(backend_url, json=payload, timeout=120)
-                
-                if res.status_code == 200:
-                    answer = res.json().get("response")
-                    # Smooth Typing Animation
-                    for word in answer.split():
-                        full_res += word + " "
-                        time.sleep(0.04)
-                        placeholder.markdown(full_res + "▌")
-                    placeholder.markdown(full_res)
-                    st.session_state.messages.append({"role": "assistant", "content": full_res})
-                    st.rerun()
-                else:
-                    st.error("Engine Timeout! 🛑")
-            except Exception as e:
-                st.error("Connection Lost. Check Railway Status.")
-                
+Sanjeev, ise deploy karke dekho. Ab ye bilkul kisi high-end developer tool ki tarah behave karega! Kya ye filtering system sahi kaam kar raha hai?
