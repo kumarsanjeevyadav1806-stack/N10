@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+langchain-groq
+langchain
+langchain-community
+python-multipart
+requests
+streamlit
+
