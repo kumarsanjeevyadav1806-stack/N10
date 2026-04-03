@@ -3,6 +3,7 @@ import sqlite3
 from fastapi import FastAPI, Body
 from fastapi.middleware.cors import CORSMiddleware
 from langchain_groq import ChatGroq
+from duckduckgo_search import DDGS
 
 app = FastAPI()
 
@@ -13,7 +14,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- DB ---
+# ---------------- DB ----------------
 def init_db():
     conn = sqlite3.connect("chat.db")
     c = conn.cursor()
@@ -26,50 +27,80 @@ def init_db():
 
 init_db()
 
-# --- TOOL: Calculator ---
+# ---------------- TOOLS ----------------
+
 def calculator(q):
     try:
         return str(eval(q))
     except:
         return None
 
-# --- API ---
+def web_search(query):
+    results = []
+    with DDGS() as ddgs:
+        for r in ddgs.text(query, max_results=5):
+            results.append(r["body"])
+    return "\n".join(results)
+
+# ---------------- AGENT BRAIN ----------------
+
+def detect_tool(user_input):
+    if any(op in user_input for op in ["+", "-", "*", "/"]):
+        return "calculator"
+    if "latest" in user_input or "news" in user_input or "who is" in user_input:
+        return "search"
+    return None
+
+# ---------------- API ----------------
+
 @app.post("/ask")
 async def ask(data: dict = Body(...)):
     user_input = data.get("user_input")
     messages = data.get("messages", [])
     pdf_text = data.get("pdf_text")
 
-    # --- TOOL USE ---
-    if any(op in user_input for op in ["+", "-", "*", "/"]):
+    # -------- TOOL DECISION --------
+    tool = detect_tool(user_input)
+
+    if tool == "calculator":
         result = calculator(user_input)
         if result:
-            return {"response": f"🧮 Answer: {result}"}
+            return {"response": f"🧮 {result}"}
 
-    # --- PDF Context ---
+    if tool == "search":
+        search_data = web_search(user_input)
+        user_input += f"\n\nInternet Data:\n{search_data[:2000]}"
+
+    # -------- PDF --------
     if pdf_text:
         user_input += f"\n\nDocument:\n{pdf_text[:3000]}"
 
-    # --- SYSTEM PROMPT ---
+    # -------- SYSTEM PROMPT --------
     system = {
         "role": "system",
-        "content": """You are Nexus Flow AI (PRO).
-You are as powerful as ChatGPT.
+        "content": """
+You are Nexus Flow AI (GOD LEVEL).
 
-Abilities:
-- Memory
-- Coding
-- Explanation
-- Reasoning
+You are as powerful as ChatGPT with tools.
+
+Capabilities:
+- Step-by-step reasoning
+- Web knowledge
 - Document analysis
+- Coding expert
+- Smart structured answers
 
-Always give structured, clean answers."""
+Rules:
+- Always be clear
+- Use bullet points when needed
+- Think before answering
+"""
     }
 
     final_messages = [system] + messages + [{"role":"user","content":user_input}]
 
     llm = ChatGroq(
-        temperature=0.5,
+        temperature=0.4,
         model_name="llama-3.3-70b-versatile",
         groq_api_key=os.getenv("GROQ_API_KEY")
     )
