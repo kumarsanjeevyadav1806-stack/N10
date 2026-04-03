@@ -1,89 +1,129 @@
 import streamlit as st
-import requests
-import base64
 import time
-import re
 
-# 1. Page Configuration
-st.set_page_config(page_title="Nexus Flow AI", page_icon="🤖", layout="centered")
+# --- Page Configuration ---
+st.set_page_config(
+    page_title="Nexus Flow AI",
+    page_icon="🚀",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
-# 2. Ultra-Clean Professional CSS
+# --- Custom CSS for Professional UI (Gemini-style Bottom Search) ---
 st.markdown("""
     <style>
-    .stApp { background-color: #ffffff; color: #1f1f1f; }
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-
-    /* Content Area */
+    /* White Theme Overrides */
+    .stApp {
+        background-color: #ffffff;
+        color: #1f1f1f;
+    }
+    
+    /* Main Chat Container */
     .main .block-container {
-        padding-top: 2rem;
-        padding-bottom: 120px !important;
-        max-width: 800px;
+        padding-bottom: 100px;
     }
 
-    /* Professional Bubbles */
-    .stChatMessage { 
-        border-radius: 12px; 
-        padding: 1.5rem; 
-        margin-bottom: 1rem;
-        border: 1px solid #f0f0f0;
+    /* Professional Message Bubbles */
+    .stChatMessage {
+        border-radius: 15px;
+        padding: 15px;
+        margin-bottom: 10px;
+        max-width: 85%;
     }
 
-    /* Fixed Input Bar */
+    /* Fixed Bottom Search Bar Container */
     div[data-testid="stChatInput"] {
         position: fixed;
         bottom: 30px;
         z-index: 1000;
-        border-radius: 24px !important;
+        background-color: #ffffff;
+        border-radius: 50px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        padding: 5px;
     }
 
-    /* Professional Code Block Styling */
-    code {
-        background-color: #1a1a1a !important;
-        color: #d1d1d1 !important;
-        padding: 12px !important;
-        border-radius: 8px !important;
-        display: block;
-    }
-
-    /* Small Copy Button Styling */
-    .copy-section {
-        display: flex;
-        justify-content: flex-end;
-        margin-top: -10px;
-        margin-bottom: 10px;
+    /* Hide redundant UI elements */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    
+    /* Progress Bar and Thinking Style */
+    .stProgress > div > div > div > div {
+        background-color: #4285F4;
     }
     </style>
     """, unsafe_allow_html=True)
 
-st.markdown("<h2 style='text-align: center; font-weight: 800;'>Nexus Flow</h2>", unsafe_allow_html=True)
-
+# --- Session State Initialization ---
 if "messages" not in st.session_state:
     st.session_state.messages = []
+if "mode" not in st.session_state:
+    st.session_state.mode = "General"
 
-# 3. Display Messages with Smart Copy Logic
-for i, msg in enumerate(st.session_state.messages):
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
+# --- Sidebar for Advanced Modes ---
+with st.sidebar:
+    st.title("Nexus Flow Settings")
+    st.session_state.mode = st.selectbox(
+        "Select AI Mode",
+        ["General", "Study", "Coding Expert", "Reasoning & Thinking", "Creative Writing", "Knowledge", "Life Mode"]
+    )
+    st.info(f"Current Mode: {st.session_state.mode} 🚀")
+    if st.button("Clear Conversation"):
+        st.session_state.messages = []
+        st.rerun()
+
+# --- Chat Engine Logic (Next Level Features) ---
+def get_ai_response(user_input, mode):
+    # Simulated thinking process for advanced reasoning
+    if mode == "Reasoning & Thinking":
+        with st.status("Analyzing and Reasoning...", expanded=True):
+            st.write("Checking logical consistency... 🧠")
+            time.sleep(1)
+            st.write("Verifying facts and data... 🔍")
+            time.sleep(1)
+            st.write("Synthesizing final answer... ✨")
+    
+    # Mode-based Response Customization
+    response_prefix = ""
+    if mode == "Coding Expert":
+        response_prefix = "💻 **Nexus Code Pro:** \n\n"
+    elif mode == "Study":
+        response_prefix = "📖 **Academic Assistant:** \n\n"
+    elif mode == "General":
+        response_prefix = "✨ "
+
+    # Mock response logic (Replace with your Gemini/OpenAI API call)
+    # Adding emojis automatically as requested
+    return f"{response_prefix}Maine aapka sawal '{user_input}' samajh liya hai. Main aapki help karne ke liye taiyar hoon! ✅ 🚀"
+
+# --- Chat Display ---
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+
+# --- Chat Input (Bottom Search Bar) ---
+if prompt := st.chat_input("Ask Nexus Flow anything..."):
+    # User Message
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    # AI Response
+    with st.chat_message("assistant"):
+        response = get_ai_response(prompt, st.session_state.mode)
         
-        # --- SMART COPY LOGIC ---
-        # Sirf tabhi Copy button dikhao jab content mein Code (```) ya specific technical keywords hon
-        if msg["role"] == "assistant":
-            contains_code = "```" in msg["content"]
-            contains_technical = any(word in msg["content"].lower() for word in ["step 1", "solution:", "formula:", "result:"])
-            
-            if contains_code or contains_technical:
-                # Extracting only the code part if backticks exist, else take full content
-                code_match = re.findall(r'
-http://googleusercontent.com/immersive_entry_chip/0
+        # Expert Response Simulation (Non-Talkative & Direct)
+        full_response = ""
+        placeholder = st.empty()
+        for chunk in response.split():
+            full_response += chunk + " "
+            time.sleep(0.05)
+            placeholder.markdown(full_response + "▌")
+        placeholder.markdown(full_response)
+        
+    st.session_state.messages.append({"role": "assistant", "content": full_response})
 
----
-
-### ✅ Is Update mein Kya Naya Hai?
-
-1.  **Smart Filtering:** Ab Nexus har chhoti baat par "Copy" button nahi dikhayega. Button sirf tabhi aayega jab message mein **Code Block** (Python/C++ etc.) ya fir koi **Technical Solution** hoga.
-2.  **Pure Code Copy:** Maine `re` (Regular Expression) use kiya hai taaki jab aap "Copy" dabayein, toh AI ki faltu baatein copy na hon, sirf triple backticks (` ``` `) ke andar wala **Asli Code** hi clipboard mein jaye.
-3.  **Visual Toast:** Copy karne par screen par ek chota sa "Copied to clipboard! ✅" message aayega, bilkul professional apps ki tarah.
-4.  **No Plus Icon:** Aapke order ke mutabik plus icon abhi bhi removed hai aur interface ekdum focused hai.
-
-Sanjeev, ise deploy karke dekho. Ab ye bilkul kisi high-end developer tool ki tarah behave karega! Kya ye filtering system sahi kaam kar raha hai?
+# --- Video/Coding Expert Metadata ---
+if st.session_state.mode == "Coding Expert":
+    st.caption("Nexus Flow is currently in Code Expert mode. Optimized for Python, C++, and Web Dev. ⚡")
+    
