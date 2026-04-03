@@ -1,94 +1,111 @@
-import streamlit as st
-import requests
-import base64
-import time
-import PyPDF2
+import os
+import sqlite3
+from fastapi import FastAPI, Body
+from fastapi.middleware.cors import CORSMiddleware
+from langchain_groq import ChatGroq
+from duckduckgo_search import DDGS
 
-st.set_page_config(page_title="Nexus Flow AI", page_icon="🤖", layout="centered")
+app = FastAPI()
 
-# --- CSS ---
-st.markdown("""
-<style>
-.stApp { background-color: white; color: black; }
-.main .block-container { padding-bottom: 120px; max-width: 800px; }
-.stChatMessage { border-radius: 15px; background-color: #f7f7f8; padding: 20px; margin-bottom: 15px; }
-.stChatInput { position: fixed; bottom: 20px; padding-left: 70px !important; }
-div[data-testid="stPopover"] { position: fixed; bottom: 32px; left: 20px; }
-</style>
-""", unsafe_allow_html=True)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-st.title("Nexus Flow AI 🤖⚡")
-st.caption("PRO Mode Enabled 🚀")
+# ---------------- DB ----------------
+def init_db():
+    conn = sqlite3.connect("chat.db")
+    c = conn.cursor()
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS chat
+    (id INTEGER PRIMARY KEY, role TEXT, content TEXT)
+    """)
+    conn.commit()
+    conn.close()
 
-# --- Session Memory ---
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+init_db()
 
-# --- Display History ---
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
+# ---------------- TOOLS ----------------
 
-# --- File Upload ---
-with st.popover("➕"):
-    uploaded_file = st.file_uploader("Upload", type=['png','jpg','jpeg','pdf'])
+def calculator(q):
+    try:
+        return str(eval(q))
+    except:
+        return None
 
-# --- Input ---
-prompt = st.chat_input("Ask anything...")
+def web_search(query):
+    results = []
+    with DDGS() as ddgs:
+        for r in ddgs.text(query, max_results=5):
+            results.append(r["body"])
+    return "\n".join(results)
 
-if prompt:
-    img_b64 = None
-    pdf_text = None
+# ---------------- AGENT BRAIN ----------------
 
-    # Image
-    if uploaded_file and uploaded_file.type in ['image/png','image/jpeg','image/jpg']:
-        img_b64 = base64.b64encode(uploaded_file.getvalue()).decode()
+def detect_tool(user_input):
+    if any(op in user_input for op in ["+", "-", "*", "/"]):
+        return "calculator"
+    if "latest" in user_input or "news" in user_input or "who is" in user_input:
+        return "search"
+    return None
 
-    # PDF
-    if uploaded_file and uploaded_file.type == "application/pdf":
-        reader = PyPDF2.PdfReader(uploaded_file)
-        pdf_text = ""
-        for page in reader.pages:
-            pdf_text += page.extract_text()
+# ---------------- API ----------------
 
-    # Save user msg
-    st.session_state.messages.append({"role":"user","content":prompt})
+@app.post("/ask")
+async def ask(data: dict = Body(...)):
+    user_input = data.get("user_input")
+    messages = data.get("messages", [])
+    pdf_text = data.get("pdf_text")
 
-    with st.chat_message("user"):
-        st.markdown(prompt)
+    # -------- TOOL DECISION --------
+    tool = detect_tool(user_input)
 
-    # --- API CALL ---
-    with st.chat_message("assistant"):
-        placeholder = st.empty()
-        full = ""
+    if tool == "calculator":
+        result = calculator(user_input)
+        if result:
+            return {"response": f"🧮 {result}"}
 
-        payload = {
-            "user_input": prompt,
-            "messages": st.session_state.messages,
-            "image_b64": img_b64,
-            "pdf_text": pdf_text
-        }
+    if tool == "search":
+        search_data = web_search(user_input)
+        user_input += f"\n\nInternet Data:\n{search_data[:2000]}"
 
-        try:
-            res = requests.post("http://localhost:8000/ask", json=payload)
+    # -------- PDF --------
+    if pdf_text:
+        user_input += f"\n\nDocument:\n{pdf_text[:3000]}"
 
-            answer = res.json()["response"]
+    # -------- SYSTEM PROMPT --------
+    system = {
+        "role": "system",
+        "content": """
+You are Nexus Flow AI (GOD LEVEL).
 
-            # typing effect
-            for word in answer.split():
-                full += word + " "
-                time.sleep(0.03)
-                placeholder.markdown(full + "▌")
+You are as powerful as ChatGPT with tools.
 
-            placeholder.markdown(full)
+Capabilities:
+- Step-by-step reasoning
+- Web knowledge
+- Document analysis
+- Coding expert
+- Smart structured answers
 
-            st.session_state.messages.append({"role":"assistant","content":full})
+Rules:
+- Always be clear
+- Use bullet points when needed
+- Think before answering
+"""
+    }
 
-        except:
-            st.error("Backend not running!")
+    final_messages = [system] + messages + [{"role":"user","content":user_input}]
 
-# Sidebar
-with st.sidebar:
-    if st.button("🗑️ Clear"):
-        st.session_state.messages = []
-        st.rerun()
+    llm = ChatGroq(
+        temperature=0.4,
+        model_name="llama-3.3-70b-versatile",
+        groq_api_key=os.getenv("GROQ_API_KEY")
+    )
+
+    res = llm.invoke(final_messages)
+    answer = res.content
+
+    return {"response": answer}
