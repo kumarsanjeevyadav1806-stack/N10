@@ -1,70 +1,105 @@
-import os
-import uvicorn
-import sqlite3
-from fastapi import FastAPI, Body
-from fastapi.middleware.cors import CORSMiddleware
-from langchain_groq import ChatGroq
+import streamlit as st
+import requests
+import base64
+import time
 
-app = FastAPI()
+# 1. Page Configuration
+st.set_page_config(page_title="Nexus Flow AI", page_icon="🤖", layout="centered")
 
-# 1. CORS Setup
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+# 2. Professional Clean CSS (Zero Icons, High Focus)
+st.markdown("""
+    <style>
+    .stApp { background-color: #ffffff; color: #1f1f1f; }
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+    /* Content Area */
+    .main .block-container {
+        padding-top: 2rem;
+        padding-bottom: 120px !important;
+        max-width: 800px;
+    }
 
-# 2. Database for Context
-def init_db():
-    conn = sqlite3.connect('nexus_brain.db')
-    c = conn.cursor()
-    c.execute('CREATE TABLE IF NOT EXISTS history (role TEXT, content TEXT)')
-    conn.commit()
-    conn.close()
+    /* Professional Bubbles */
+    .stChatMessage { 
+        border-radius: 12px; 
+        padding: 1.5rem; 
+        margin-bottom: 1rem;
+        border: 1px solid #f0f0f0;
+    }
 
-init_db()
+    /* Fixed Input Bar - Professional Position */
+    div[data-testid="stChatInput"] {
+        position: fixed;
+        bottom: 30px;
+        z-index: 1000;
+        border-radius: 24px !important;
+    }
 
-@app.post("/ask")
-async def reasoning_engine(user_input: str = Body(..., embed=True), image_b64: str = Body(None, embed=True)):
-    try:
-        conn = sqlite3.connect('nexus_brain.db')
-        c = conn.cursor()
-        c.execute("SELECT role, content FROM history ORDER BY rowid DESC LIMIT 6")
-        context = "\n".join([f"{r}: {c}" for r, c in reversed(c.fetchall())])
+    /* Dark Code Block */
+    code {
+        background-color: #1a1a1a !important;
+        color: #d1d1d1 !important;
+        padding: 12px !important;
+        border-radius: 8px !important;
+        display: block;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-        # ADVANCED REASONING PROMPT (Thinking Power)
-        # Hum AI ko 'Chain of Thought' process ke liye force kar rahe hain.
-        reasoning_system_prompt = f"""
-        You are Nexus Flow AI, an advanced reasoning model. 
-        Before answering, perform a deep mental analysis of the user's request.
-        1. Break down the problem into logical steps.
-        2. Identify potential errors or edge cases.
-        3. Provide the most optimized, professional solution directly.
-        Context: {context}
-        """
+st.markdown("<h2 style='text-align: center; font-weight: 800;'>Nexus Flow</h2>", unsafe_allow_html=True)
 
-        # Using Llama 3.3 70B (Best for Reasoning)
-        llm = ChatGroq(model_name="llama-3.3-70b-versatile", groq_api_key=GROQ_API_KEY)
-        
-        if image_b64:
-            # High-end Vision Reasoning
-            llm_vision = ChatGroq(model_name="llama-3.2-90b-vision-preview", groq_api_key=GROQ_API_KEY)
-            res = llm_vision.invoke([{"role": "user", "content": [
-                {"type": "text", "text": reasoning_system_prompt + f"\nAnalyze this image and solve: {user_input}"},
-                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}}
-            ]}])
-        else:
-            # Deep Logic Reasoning
-            res = llm.invoke(f"{reasoning_system_prompt}\nUser Query: {user_input}\nNexus Reasoning & Solution:")
-        
-        answer = res.content
-        c.execute("INSERT INTO history VALUES (?, ?)", ("user", user_input))
-        c.execute("INSERT INTO history VALUES (?, ?)", ("assistant", answer))
-        conn.commit()
-        conn.close()
-        return {"response": answer}
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-    except Exception as e:
-        return {"response": f"Reasoning Error: {str(e)}"}
+# Display Messages
+for i, msg in enumerate(st.session_state.messages):
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
+        if msg["role"] == "assistant":
+            if st.button(f"📋 Copy", key=f"cp_{i}"):
+                st.write(f'<script>navigator.clipboard.writeText("{msg["content"].encode("unicode_escape").decode()}");</script>', unsafe_allow_html=True)
 
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
-    
+# Sidebar for Image/PDF Upload
+with st.sidebar:
+    st.title("📂 Media Control")
+    uploaded_file = st.file_uploader("Upload for Vision Analysis", type=['png', 'jpg', 'jpeg', 'pdf'])
+    st.divider()
+    if st.button("🗑️ Reset Brain"):
+        st.session_state.messages = []
+        st.rerun()
+
+prompt = st.chat_input("Ask anything. Reasoning is active...")
+
+if prompt:
+    img_b64 = None
+    if uploaded_file and uploaded_file.type in ['image/png', 'image/jpeg', 'image/jpg']:
+        img_b64 = base64.b64encode(uploaded_file.getvalue()).decode()
+
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    with st.chat_message("assistant"):
+        placeholder = st.empty()
+        full_res = ""
+        # Advanced Thinking Effect
+        with st.status("Nexus is thinking...", expanded=False) as status:
+            try:
+                res = requests.post("https://web-production-68d0e.up.railway.app/ask", 
+                                    json={"user_input": prompt, "image_b64": img_b64}, timeout=150)
+                if res.status_code == 200:
+                    answer = res.json().get("response")
+                    status.update(label="Reasoning complete!", state="complete", expanded=False)
+                    for word in answer.split():
+                        full_res += word + " "
+                        time.sleep(0.04)
+                        placeholder.markdown(full_res + "▌")
+                    placeholder.markdown(full_res)
+                    st.session_state.messages.append({"role": "assistant", "content": full_res})
+                    st.rerun()
+                else:
+                    st.error("Engine Overload. Try again.")
+            except:
+                st.error("Connection Interrupted.")
+                
