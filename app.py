@@ -3,80 +3,97 @@ import requests
 import base64
 import time
 
-# 1. Page Config
+# 1. Page Configuration
 st.set_page_config(page_title="Nexus Flow AI", page_icon="🤖", layout="centered")
 
-# 2. Advance Gemini CSS (Plus Menu & Search Bar)
+# 2. Ultra-Clean Professional CSS (No Plus Icon)
 st.markdown("""
     <style>
-    .stApp { background-color: white; color: black; }
-    .main .block-container { padding-bottom: 120px !important; }
+    /* White Theme */
+    .stApp { background-color: #ffffff; color: #212121; }
     
-    /* Gemini Plus Button Style */
-    div[data-testid="stPopover"] > button {
-        border-radius: 50% !important;
-        width: 48px !important;
-        height: 48px !important;
-        background-color: #f0f4f9 !important;
-        border: none !important;
-        font-size: 22px !important;
-        transition: 0.3s ease;
-    }
-    
-    /* Menu Item Styling */
-    .menu-btn {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 10px;
-        border-radius: 10px;
-        cursor: pointer;
-        font-weight: 500;
+    /* Hide Everything Unnecessary */
+    footer {visibility: hidden;}
+    #MainMenu {visibility: hidden;}
+    header {visibility: hidden;}
+
+    /* Content Area Styling */
+    .main .block-container {
+        padding-top: 3rem;
+        padding-bottom: 120px !important;
+        max-width: 800px;
     }
 
-    [data-testid="stBottomBlockContainer"] {
-        background-color: white !important;
-        border-top: 1px solid #f0f2f6;
-        padding: 15px 5% 35px 5% !important;
+    /* Professional Message Bubbles */
+    .stChatMessage { 
+        border-radius: 12px; 
+        padding: 1.5rem; 
+        margin-bottom: 1rem;
+        border: 1px solid #e5e5e5;
+    }
+    
+    /* Assistant Background */
+    div[data-testid="stChatMessageAssistant"] {
+        background-color: #f7f7f8 !important;
+    }
+
+    /* Fixed Bottom Search Bar - NO PLUS ICON SPACE */
+    div[data-testid="stChatInput"] {
+        position: fixed;
+        bottom: 30px;
+        left: 0;
+        right: 0;
+        z-index: 1000;
+        padding: 0 10% !important;
+    }
+    
+    /* Input Field Styling */
+    .stChatInput textarea {
+        border-radius: 26px !important;
+        border: 1px solid #d1d1d1 !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05) !important;
+    }
+
+    /* Code Block Styling */
+    code {
+        background-color: #0d0d0d !important;
+        color: #f8f8f8 !important;
+        padding: 15px !important;
+        border-radius: 10px !important;
+        display: block;
     }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("Nexus Flow AI 🤖⚡")
+# 3. Header
+st.markdown("<h1 style='text-align: center; font-weight: 700;'>Nexus Flow</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #666;'>Direct. Fast. Intelligent.</p>", unsafe_allow_html=True)
 
-# 3. Session State
+# 4. Session State
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display Chat
+# Display Conversation
 for i, msg in enumerate(st.session_state.messages):
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
         if msg["role"] == "assistant":
-            st.button(f"📋 Copy", key=f"cp_{i}")
+            if st.button(f"📋 Copy", key=f"cp_{i}"):
+                st.write(f'<script>navigator.clipboard.writeText("{msg["content"].encode("unicode_escape").decode()}");</script>', unsafe_allow_html=True)
 
-# 4. ADVANCE PLUS MENU (Gemini Style)
-with st.container():
-    col1, col2 = st.columns([0.15, 0.85])
-    
-    with col1:
-        with st.popover("➕"):
-            st.markdown("### Choose Action")
-            # Multiple Options like Gemini
-            opt = st.radio("", ["📁 Files", "📷 Camera", "🖼️ Gallery"], label_visibility="collapsed")
-            
-            if opt == "📷 Camera":
-                uploaded_file = st.camera_input("Take a photo")
-            else:
-                uploaded_file = st.file_uploader("Upload Image/PDF", type=['png', 'jpg', 'jpeg', 'pdf'])
-            
-            if uploaded_file:
-                st.success(f"Selected: {uploaded_file.name} ✅")
+# 5. SIDEBAR FOR UTILITIES (Plus icon options moved here)
+with st.sidebar:
+    st.title("Settings & Media")
+    uploaded_file = st.file_uploader("Analyze Image/PDF", type=['png', 'jpg', 'jpeg', 'pdf'])
+    st.divider()
+    if st.button("🗑️ Clear Chat"):
+        st.session_state.messages = []
+        st.rerun()
 
-    with col2:
-        prompt = st.chat_input("Ask Nexus anything... ✨")
+# 6. MAIN INPUT (The Only Entry Point)
+prompt = st.chat_input("Message Nexus...")
 
-# 5. VISION & CHAT LOGIC
+# 7. LOGIC
 if prompt:
     img_b64 = None
     if uploaded_file and uploaded_file.type in ['image/png', 'image/jpeg', 'image/jpg']:
@@ -86,24 +103,29 @@ if prompt:
     with st.chat_message("user"):
         st.markdown(prompt)
 
+    backend_url = "https://web-production-68d0e.up.railway.app/ask"
+    
     with st.chat_message("assistant"):
         placeholder = st.empty()
         full_res = ""
-        with st.spinner("Analyzing... 🧠"):
+        with st.spinner(" "):
             try:
-                backend_url = "https://web-production-68d0e.up.railway.app/ask"
-                res = requests.post(backend_url, json={"user_input": prompt, "image_b64": img_b64}, timeout=150)
+                # Optimized Payload for 90B Model
+                payload = {"user_input": f"Solve directly: {prompt}", "image_b64": img_b64}
+                res = requests.post(backend_url, json=payload, timeout=120)
+                
                 if res.status_code == 200:
                     answer = res.json().get("response")
+                    # Smooth Typing Animation
                     for word in answer.split():
                         full_res += word + " "
-                        time.sleep(0.03)
+                        time.sleep(0.04)
                         placeholder.markdown(full_res + "▌")
                     placeholder.markdown(full_res)
                     st.session_state.messages.append({"role": "assistant", "content": full_res})
                     st.rerun()
                 else:
-                    st.error("Engine Error! Check Model.")
+                    st.error("Engine Timeout! 🛑")
             except Exception as e:
-                st.error(f"Error: {e}")
+                st.error("Connection Lost. Check Railway Status.")
                 
