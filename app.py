@@ -1,129 +1,92 @@
 import streamlit as st
 import time
+import random
 
-# --- Page Configuration ---
+# --- 1. Advanced Page Config ---
 st.set_page_config(
     page_title="Nexus Flow AI",
     page_icon="🚀",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"
 )
 
-# --- Custom CSS for Professional UI (Gemini-style Bottom Search) ---
+# --- 2. Professional CSS (White Theme & Bottom Search) ---
 st.markdown("""
     <style>
-    /* White Theme Overrides */
+    /* White Theme & Typography */
     .stApp {
-        background-color: #ffffff;
-        color: #1f1f1f;
+        background-color: #FFFFFF;
+        color: #202124;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
     
-    /* Main Chat Container */
+    /* Main Container Padding for Bottom Bar */
     .main .block-container {
-        padding-bottom: 100px;
+        padding-bottom: 120px;
+        max-width: 900px;
     }
 
     /* Professional Message Bubbles */
-    .stChatMessage {
-        border-radius: 15px;
-        padding: 15px;
-        margin-bottom: 10px;
-        max-width: 85%;
+    div[data-testid="stChatMessage"] {
+        background-color: #f8f9fa;
+        border: 1px solid #e0e0e0;
+        border_radius: 20px;
+        padding: 10px 20px;
+        margin-bottom: 15px;
     }
 
-    /* Fixed Bottom Search Bar Container */
+    /* Fixed Bottom Search Bar (Gemini Style) */
     div[data-testid="stChatInput"] {
         position: fixed;
-        bottom: 30px;
-        z-index: 1000;
+        bottom: 25px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 80% !important;
         background-color: #ffffff;
+        z-index: 1000;
         border-radius: 50px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        padding: 5px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        border: 1px solid #ddd;
     }
 
-    /* Hide redundant UI elements */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    
-    /* Progress Bar and Thinking Style */
-    .stProgress > div > div > div > div {
-        background-color: #4285F4;
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+        width: 8px;
     }
+    ::-webkit-scrollbar-thumb {
+        background: #ddd;
+        border-radius: 10px;
+    }
+
+    /* Hide Streamlit elements */
+    #MainMenu, footer, header {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
 
-# --- Session State Initialization ---
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-if "mode" not in st.session_state:
-    st.session_state.mode = "General"
+# --- 3. Nexus Flow Brain (Internal Logic) ---
+class NexusBrain:
+    @staticmethod
+    def get_thinking_steps():
+        return [
+            "Initializing neural pathways... 🧠",
+            "Scanning context for hidden patterns... 🔍",
+            "Consulting coding repositories... 💻",
+            "Applying logical constraints... ⚖️",
+            "Finalizing high-precision response... ✨"
+        ]
 
-# --- Sidebar for Advanced Modes ---
-with st.sidebar:
-    st.title("Nexus Flow Settings")
-    st.session_state.mode = st.selectbox(
-        "Select AI Mode",
-        ["General", "Study", "Coding Expert", "Reasoning & Thinking", "Creative Writing", "Knowledge", "Life Mode"]
-    )
-    st.info(f"Current Mode: {st.session_state.mode} 🚀")
-    if st.button("Clear Conversation"):
-        st.session_state.messages = []
-        st.rerun()
+    @staticmethod
+    def generate_expert_response(prompt, mode):
+        # Professional Emojis and Direct Logic
+        if mode == "Coding Mode":
+            return f"### Optimized Code Solution 💻\n\n
+http://googleusercontent.com/immersive_entry_chip/0
 
-# --- Chat Engine Logic (Next Level Features) ---
-def get_ai_response(user_input, mode):
-    # Simulated thinking process for advanced reasoning
-    if mode == "Reasoning & Thinking":
-        with st.status("Analyzing and Reasoning...", expanded=True):
-            st.write("Checking logical consistency... 🧠")
-            time.sleep(1)
-            st.write("Verifying facts and data... 🔍")
-            time.sleep(1)
-            st.write("Synthesizing final answer... ✨")
-    
-    # Mode-based Response Customization
-    response_prefix = ""
-    if mode == "Coding Expert":
-        response_prefix = "💻 **Nexus Code Pro:** \n\n"
-    elif mode == "Study":
-        response_prefix = "📖 **Academic Assistant:** \n\n"
-    elif mode == "General":
-        response_prefix = "✨ "
+### Is Updated Code mein kya naya hai?
+1.  **Bottom Search Bar (Centered):** Ise screen ke niche center mein fix kiya gaya hai, bilkul Gemini ya ChatGPT ki tarah.
+2.  **Integrated Thinking:** Jab aap message bhejenge, toh ek expandable "Thinking" menu aayega jo dikhayega ki AI kaise soch raha hai.
+3.  **Modern Sidebar:** Isme modes select karne ka saaf option hai.
+4.  **Expert Coding:** "Coding Mode" select karne par yeh direct code block ke sath response dega.
+5.  **No Talkative Filler:** AI seedha point par baat karega aur professional emojis use karega.
 
-    # Mock response logic (Replace with your Gemini/OpenAI API call)
-    # Adding emojis automatically as requested
-    return f"{response_prefix}Maine aapka sawal '{user_input}' samajh liya hai. Main aapki help karne ke liye taiyar hoon! ✅ 🚀"
-
-# --- Chat Display ---
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-
-# --- Chat Input (Bottom Search Bar) ---
-if prompt := st.chat_input("Ask Nexus Flow anything..."):
-    # User Message
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
-
-    # AI Response
-    with st.chat_message("assistant"):
-        response = get_ai_response(prompt, st.session_state.mode)
-        
-        # Expert Response Simulation (Non-Talkative & Direct)
-        full_response = ""
-        placeholder = st.empty()
-        for chunk in response.split():
-            full_response += chunk + " "
-            time.sleep(0.05)
-            placeholder.markdown(full_response + "▌")
-        placeholder.markdown(full_response)
-        
-    st.session_state.messages.append({"role": "assistant", "content": full_response})
-
-# --- Video/Coding Expert Metadata ---
-if st.session_state.mode == "Coding Expert":
-    st.caption("Nexus Flow is currently in Code Expert mode. Optimized for Python, C++, and Web Dev. ⚡")
-    
+Aap bas is code ko copy karke apni `app.py` mein paste karein aur run karein. Ab aapka chatbot "Next Level" tayyar hai! 🚀
