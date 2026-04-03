@@ -1,92 +1,133 @@
-import os
-import uvicorn
-import sqlite3
+import streamlit as st
+import requests
 import base64
-from fastapi import FastAPI, Body, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from langchain_groq import ChatGroq
-from langchain_community.tools.tavily_search import TavilySearchResults
+import time
 
-app = FastAPI()
+# 1. Page Configuration
+st.set_page_config(page_title="Nexus Flow AI", page_icon="🤖", layout="centered")
 
-# 1. CORS Setup for Streamlit Connection
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# 2. API Keys (Railway Environment Variables)
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
-
-# 3. DATABASE SETUP (Long-term Memory)
-def init_db():
-    conn = sqlite3.connect('nexus_brain.db')
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS history 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, role TEXT, content TEXT)''')
-    conn.commit()
-    conn.close()
-
-init_db()
-
-@app.post("/ask")
-async def nexus_god_engine(
-    user_input: str = Body(..., embed=True),
-    image_b64: str = Body(None, embed=True)
-):
-    try:
-        conn = sqlite3.connect('nexus_brain.db')
-        c = conn.cursor()
-        
-        # 1. Fetch Last 10 messages for Deep Context
-        c.execute("SELECT role, content FROM history ORDER BY id DESC LIMIT 10")
-        rows = c.fetchall()
-        past_memory = "\n".join([f"{r}: {c}" for r, c in reversed(rows)])
-
-        # 2. VISION LOGIC (Fixed: Llama 3.2 90B Vision)
-        if image_b64:
-            # Humne yahan naya model use kiya hai jo decommissioning error nahi dega
-            llm = ChatGroq(model_name="llama-3.2-90b-vision-preview", groq_api_key=GROQ_API_KEY)
-            res = llm.invoke([{"role": "user", "content": [
-                {"type": "text", "text": f"System: Directly solve the problem in the image. Memory: {past_memory}\nUser Question: {user_input}"},
-                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}}
-            ]}])
-            answer = res.content
-        
-        # 3. INTERNET SEARCH LOGIC (Tavily)
-        elif any(word in user_input.lower() for word in ["latest", "news", "today", "search", "weather", "current"]):
-            if not TAVILY_API_KEY:
-                answer = "Sanjeev, please add TAVILY_API_KEY in Railway to use Internet Search! 🌐"
-            else:
-                search = TavilySearchResults(tavily_api_key=TAVILY_API_KEY)
-                search_data = search.run(user_input)
-                llm = ChatGroq(model_name="llama-3.3-70b-versatile", groq_api_key=GROQ_API_KEY)
-                res = llm.invoke(f"Internet Data: {search_data}\n\nUser: {user_input}\nNexus (Provide direct answer):")
-                answer = res.content
-            
-        # 4. NORMAL CHAT (Llama 3.3 70B Expert)
-        else:
-            llm = ChatGroq(model_name="llama-3.3-70b-versatile", groq_api_key=GROQ_API_KEY)
-            full_prompt = f"System: You are Nexus Flow AI. Solve directly. Do not explain features.\nMemory:\n{past_memory}\nUser: {user_input}\nNexus:"
-            res = llm.invoke(full_prompt)
-            answer = res.content
-
-        # 5. Save Interaction to Memory
-        c.execute("INSERT INTO history (role, content) VALUES (?, ?)", ("user", user_input))
-        c.execute("INSERT INTO history (role, content) VALUES (?, ?)", ("assistant", answer))
-        conn.commit()
-        conn.close()
-
-        return {"response": answer}
-
-    except Exception as e:
-        # Error handling for decommissioned models or connection issues
-        return {"response": f"God Engine Error: {str(e)} 🛑 (Check if GROQ API is active)"}
-
-if __name__ == "__main__":
-    # Standard Railway Port binding
-    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
+# 2. Ultra-Advanced CSS (Bottom Sheet Animation)
+st.markdown("""
+    <style>
+    .stApp { background-color: white; color: black; }
     
+    /* Content Padding */
+    .main .block-container { padding-bottom: 150px !important; }
+
+    /* Hide default Streamlit elements */
+    footer {visibility: hidden;}
+
+    /* Bottom Sheet Styling like your screenshot */
+    .menu-container {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: white;
+        border-radius: 30px 30px 0 0;
+        padding: 20px;
+        z-index: 10001;
+        box-shadow: 0 -5px 20px rgba(0,0,0,0.1);
+        display: none; /* Initially hidden */
+    }
+
+    /* Handle (The grey line at top of menu) */
+    .handle {
+        width: 40px;
+        height: 5px;
+        background: #ccc;
+        border-radius: 10px;
+        margin: 0 auto 20px auto;
+    }
+
+    /* Menu Item Design */
+    .menu-item {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        padding: 15px;
+        font-size: 18px;
+        color: #333;
+        border-radius: 10px;
+    }
+    
+    /* Plus Button Style */
+    div[data-testid="stPopover"] > button {
+        border-radius: 50% !important;
+        width: 50px !important;
+        height: 50px !important;
+        background-color: #f0f4f9 !important;
+        border: none !important;
+        font-size: 24px !important;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+st.title("Nexus Flow AI 🤖⚡")
+
+# 3. Session State
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# Display History
+for i, msg in enumerate(st.session_state.messages):
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
+
+# 4. THE BOTTOM SHEET MENU (List Style like Screenshot)
+with st.container():
+    col_plus, col_input = st.columns([0.15, 0.85])
+    
+    with col_plus:
+        # Hum popover ke andar list style layout bana rahe hain
+        with st.popover("➕"):
+            st.markdown('<div class="handle"></div>', unsafe_allow_html=True)
+            
+            # Action selection
+            choice = st.radio(
+                "Select Action",
+                ["📷 Camera", "🖼️ Gallery", "📎 Files", "☁️ Drive", "📓 Notebooks"],
+                label_visibility="collapsed"
+            )
+            
+            if choice == "📷 Camera":
+                uploaded_file = st.camera_input("Take Photo")
+            elif choice == "🖼️ Gallery" or choice == "📎 Files":
+                uploaded_file = st.file_uploader("Choose File", type=['png', 'jpg', 'jpeg', 'pdf'])
+            else:
+                st.info(f"{choice} feature coming soon!")
+                uploaded_file = None
+
+    with col_input:
+        prompt = st.chat_input("Ask Gemini...")
+
+# 5. LOGIC (Model 90B Fix Included)
+if prompt:
+    img_b64 = None
+    if uploaded_file and hasattr(uploaded_file, 'getvalue'):
+        img_b64 = base64.b64encode(uploaded_file.getvalue()).decode()
+
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    with st.chat_message("assistant"):
+        placeholder = st.empty()
+        full_res = ""
+        with st.spinner("Analyzing..."):
+            try:
+                backend_url = "https://web-production-68d0e.up.railway.app/ask"
+                res = requests.post(backend_url, json={"user_input": prompt, "image_b64": img_b64}, timeout=120)
+                if res.status_code == 200:
+                    answer = res.json().get("response")
+                    for word in answer.split():
+                        full_res += word + " "
+                        time.sleep(0.03)
+                        placeholder.markdown(full_res + "▌")
+                    placeholder.markdown(full_res)
+                    st.session_state.messages.append({"role": "assistant", "content": full_res})
+                    st.rerun()
+            except Exception as e:
+                st.error(f"Error: {e}")
+                
