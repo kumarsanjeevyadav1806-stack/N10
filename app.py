@@ -23,7 +23,7 @@ if prompt := st.chat_input("Message Nexus Flow..."):
         st.markdown(prompt)
 
     # LIVE RAILWAY URL (Apna Railway URL yahan confirm karein)
-    backend_url = "https://n10-production.up.railway.app/ask" 
+    backend_url = "https://web-production-68d0e.up.railway.app/ask" 
     
     with st.spinner("Nexus is thinking..."):
         try:
