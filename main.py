@@ -1,9 +1,11 @@
 import os
+import uvicorn
 import sqlite3
-from fastapi import FastAPI, Body
+import base64
+from fastapi import FastAPI, Body, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from langchain_groq import ChatGroq
-from duckduckgo_search import DDGS
+from langchain_community.tools.tavily_search import TavilySearchResults
 
 app = FastAPI()
 
@@ -14,98 +16,73 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ---------------- DB ----------------
+# API Keys (Railway Variables mein zaroori hain)
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
+
+# --- DATABASE SETUP (Permanent Memory) ---
 def init_db():
-    conn = sqlite3.connect("chat.db")
+    conn = sqlite3.connect('nexus_brain.db')
     c = conn.cursor()
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS chat
-    (id INTEGER PRIMARY KEY, role TEXT, content TEXT)
-    """)
+    c.execute('''CREATE TABLE IF NOT EXISTS history 
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, role TEXT, content TEXT)''')
     conn.commit()
     conn.close()
 
 init_db()
 
-# ---------------- TOOLS ----------------
-
-def calculator(q):
-    try:
-        return str(eval(q))
-    except:
-        return None
-
-def web_search(query):
-    results = []
-    with DDGS() as ddgs:
-        for r in ddgs.text(query, max_results=5):
-            results.append(r["body"])
-    return "\n".join(results)
-
-# ---------------- AGENT BRAIN ----------------
-
-def detect_tool(user_input):
-    if any(op in user_input for op in ["+", "-", "*", "/"]):
-        return "calculator"
-    if "latest" in user_input or "news" in user_input or "who is" in user_input:
-        return "search"
-    return None
-
-# ---------------- API ----------------
-
 @app.post("/ask")
-async def ask(data: dict = Body(...)):
-    user_input = data.get("user_input")
-    messages = data.get("messages", [])
-    pdf_text = data.get("pdf_text")
+async def nexus_god_engine(
+    user_input: str = Body(..., embed=True),
+    image_b64: str = Body(None, embed=True)
+):
+    try:
+        conn = sqlite3.connect('nexus_brain.db')
+        c = conn.cursor()
+        
+        # 1. Fetch Last 10 messages for context
+        c.execute("SELECT role, content FROM history ORDER BY id DESC LIMIT 10")
+        rows = c.fetchall()
+        past_memory = "\n".join([f"{r}: {c}" for r, c in reversed(rows)])
 
-    # -------- TOOL DECISION --------
-    tool = detect_tool(user_input)
+        # 2. Vision Check (Photo Analysis)
+        if image_b64:
+            llm = ChatGroq(model_name="llama-3.2-11b-vision-preview", groq_api_key=GROQ_API_KEY)
+            res = llm.invoke([{"role": "user", "content": [
+                {"type": "text", "text": f"Context: {past_memory}\nUser Question: {user_input}"},
+                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}}
+            ]}])
+            answer = res.content
+        
+        # 3. Internet Search Check (For Latest News)
+        elif any(word in user_input.lower() for word in ["latest", "news", "today", "search", "weather"]):
+            if not TAVILY_API_KEY:
+                answer = "Sanjeev, please add TAVILY_API_KEY for internet search!"
+            else:
+                search = TavilySearchResults(tavily_api_key=TAVILY_API_KEY)
+                search_data = search.run(user_input)
+                llm = ChatGroq(model_name="llama-3.3-70b-versatile", groq_api_key=GROQ_API_KEY)
+                res = llm.invoke(f"Internet Data: {search_data}\n\nUser Question: {user_input}")
+                answer = res.content
+            
+        # 4. Normal Chat with Deep Memory
+        else:
+            llm = ChatGroq(model_name="llama-3.3-70b-versatile", groq_api_key=GROQ_API_KEY)
+            full_prompt = f"System: You are Nexus Flow AI by Sanjeev Kumar. You have permanent memory.\nMemory:\n{past_memory}\nUser: {user_input}\nNexus:"
+            res = llm.invoke(full_prompt)
+            answer = res.content
 
-    if tool == "calculator":
-        result = calculator(user_input)
-        if result:
-            return {"response": f"🧮 {result}"}
+        # 5. Save everything to Database
+        c.execute("INSERT INTO history (role, content) VALUES (?, ?)", ("user", user_input))
+        c.execute("INSERT INTO history (role, content) VALUES (?, ?)", ("assistant", answer))
+        conn.commit()
+        conn.close()
 
-    if tool == "search":
-        search_data = web_search(user_input)
-        user_input += f"\n\nInternet Data:\n{search_data[:2000]}"
+        return {"response": answer}
 
-    # -------- PDF --------
-    if pdf_text:
-        user_input += f"\n\nDocument:\n{pdf_text[:3000]}"
+    except Exception as e:
+        return {"response": f"God Engine Error: {str(e)}"}
 
-    # -------- SYSTEM PROMPT --------
-    system = {
-        "role": "system",
-        "content": """
-You are Nexus Flow AI (GOD LEVEL).
-
-You are as powerful as ChatGPT with tools.
-
-Capabilities:
-- Step-by-step reasoning
-- Web knowledge
-- Document analysis
-- Coding expert
-- Smart structured answers
-
-Rules:
-- Always be clear
-- Use bullet points when needed
-- Think before answering
-"""
-    }
-
-    final_messages = [system] + messages + [{"role":"user","content":user_input}]
-
-    llm = ChatGroq(
-        temperature=0.4,
-        model_name="llama-3.3-70b-versatile",
-        groq_api_key=os.getenv("GROQ_API_KEY")
-    )
-
-    res = llm.invoke(final_messages)
-    answer = res.content
-
-    return {"response": answer}
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
+                
