@@ -5,12 +5,17 @@ import base64
 # 1. Page Configuration
 st.set_page_config(page_title="Nexus Flow AI", page_icon="🤖", layout="centered")
 
-# 2. Gemini Style CSS (Plus icon side-by-side with Search Bar)
+# 2. Gemini Style CSS (Fixed Bottom Input + Floating Plus)
 st.markdown("""
     <style>
     /* Main Background */
     .stApp { background-color: white; color: black; }
     
+    /* Chat messages padding to avoid being hidden by the bottom bar */
+    .main .block-container {
+        padding-bottom: 150px;
+    }
+
     /* Custom Chat Message Bubbles */
     .stChatMessage { 
         border-radius: 20px; 
@@ -20,55 +25,56 @@ st.markdown("""
         margin-bottom: 10px; 
     }
 
-    /* Styling for the Plus Icon Button inside Popover */
+    /* Floating Plus Icon Button Styling */
     div[data-testid="stPopover"] > button {
         border-radius: 50% !important;
-        width: 45px !important;
-        height: 45px !important;
+        width: 50px !important;
+        height: 50px !important;
         border: none !important;
         background-color: #f0f4f9 !important;
-        font-size: 20px !important;
-        margin-top: 10px;
+        font-size: 24px !important;
+        position: fixed;
+        bottom: 30px;
+        left: 20px;
+        z-index: 1000;
+        box-shadow: 0px 2px 10px rgba(0,0,0,0.1);
     }
     
-    /* Layout fix for Side-by-Side */
-    .chat-container {
-        display: flex;
-        align-items: center;
-        gap: 10px;
+    /* Ensuring the Search Input stays at the very bottom */
+    .stChatInput {
+        position: fixed;
+        bottom: 20px;
+        z-index: 999;
     }
     </style>
     """, unsafe_allow_html=True)
 
 st.title("Nexus Flow AI 🤖")
-st.caption("Advanced Chat with Document & Photo Support")
+st.caption("Advanced Chat | Fixed Bottom Search Bar")
 
 # 3. Chat Memory
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
+# Display Chat History
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# 4. GEMINI STYLE INPUT BAR (Plus Icon on the side)
-# Hum columns ka use kar rahe hain taaki Plus aur Input side-by-side dikhen
-col_icon, col_input = st.columns([0.15, 0.85])
+# 4. FIXED BOTTOM UI
+# Plus Icon (Left Side Floating)
+with st.popover("➕"):
+    st.markdown("### Attach File")
+    uploaded_file = st.file_uploader("Upload Photos or PDFs", type=['png', 'jpg', 'jpeg', 'pdf'], label_visibility="collapsed")
+    if uploaded_file:
+        st.success(f"Selected: {uploaded_file.name}")
 
-with col_icon:
-    # Camera remove kar diya gaya hai, sirf Upload options hain
-    with st.popover("➕"):
-        st.markdown("### Attach")
-        uploaded_file = st.file_uploader("Photos / Documents", type=['png', 'jpg', 'jpeg', 'pdf'], label_visibility="collapsed")
-        if uploaded_file:
-            st.success(f"Selected: {uploaded_file.name}")
-
-with col_input:
-    prompt = st.chat_input("Ask Nexus...")
+# Search Bar (Fixed Bottom by Streamlit Default + CSS Adjustment)
+prompt = st.chat_input("Ask Nexus anything...")
 
 # 5. PROCESSING LOGIC
 if prompt:
-    # File handling (Base64 for Images)
+    # Image handling (Base64 for Vision)
     img_b64 = None
     if uploaded_file and uploaded_file.type in ['image/png', 'image/jpeg', 'image/jpg']:
         img_b64 = base64.b64encode(uploaded_file.getvalue()).decode()
@@ -90,11 +96,11 @@ if prompt:
                     st.markdown(answer)
                     st.session_state.messages.append({"role": "assistant", "content": answer})
                 else:
-                    st.error("Engine busy.")
+                    st.error("Engine busy. Please wait.")
             except:
-                st.error("Connection Failed. Check Railway backend.")
+                st.error("Connection Failed. Make sure Railway is running.")
 
-# Sidebar for Reset
+# Sidebar
 with st.sidebar:
     if st.button("🗑️ Clear History"):
         st.session_state.messages = []
