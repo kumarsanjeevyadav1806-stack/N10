@@ -3,133 +3,117 @@ import requests
 import base64
 import time
 
-# 1. Page Configuration (Mobile-first layout)
+# 1. Page Configuration
 st.set_page_config(page_title="Nexus Flow AI", page_icon="🤖", layout="centered")
 
-# 2. Ultra-Advanced CSS (Fixed)
+# 2. Heavy Duty CSS (Custom Bottom Bar Fix)
 st.markdown("""
     <style>
     .stApp { background-color: white; color: black; }
     
+    /* Content Area Padding */
     .main .block-container {
         padding-bottom: 120px !important;
         max-width: 800px;
     }
 
-    .stChatMessage { 
-        border-radius: 20px; 
-        border: none; 
-        background-color: #f7f7f8; 
-        padding: 20px; 
-        margin-bottom: 15px;
-        line-height: 1.6;
-    }
+    /* ChatGPT Style Messages */
+    .stChatMessage { border-radius: 15px; background-color: #f7f7f8; margin-bottom: 10px; }
 
-    /* FIXED: removed breaking fixed input */
-    
-    div[data-testid="stPopover"] {
+    /* Custom Floating Bottom Bar */
+    .bottom-bar-container {
         position: fixed;
-        bottom: 60px;
-        left: 15px;
-        z-index: 1001;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 90%;
+        max-width: 750px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        z-index: 9999;
+        background: white;
+        padding: 10px;
+        border-radius: 30px;
+        border: 1px solid #dfe1e5;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
     }
 
-    div[data-testid="stPopover"] > button {
-        border-radius: 50% !important;
-        width: 48px !important;
-        height: 48px !important;
-        background-color: #f0f4f9 !important;
-        border: none !important;
-        font-size: 22px !important;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    }
-
+    /* Hide Streamlit Native Input if it exists */
+    .stChatInput { display: none !important; }
+    
     footer {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
 
 st.title("Nexus Flow AI 🤖⚡")
 
-# 3. Memory & Session State (FIXED: welcome message added)
+# 3. Session State
 if "messages" not in st.session_state:
-    st.session_state.messages = [
-        {"role": "assistant", "content": "👋 Hello! I am Nexus Flow AI. Ask me anything."}
-    ]
+    st.session_state.messages = []
 
-# Display History with Copy Button
+# Display History
 for i, msg in enumerate(st.session_state.messages):
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
         if msg["role"] == "assistant":
-            if st.button(f"📋 Copy", key=f"copy_{i}"):
+            if st.button(f"📋 Copy", key=f"cp_{i}"):
                 st.write(f'<script>navigator.clipboard.writeText("{msg["content"].encode("unicode_escape").decode()}");</script>', unsafe_allow_html=True)
 
-# 4. BOTTOM UI
-
-with st.popover("➕"):
-    st.markdown("### Attach Files 📂")
-    uploaded_file = st.file_uploader(
-        "Upload Image or Document",
-        type=['png', 'jpg', 'jpeg', 'pdf'],
-        label_visibility="collapsed"
-    )
-    if uploaded_file:
-        st.success(f"File '{uploaded_file.name}' is attached! ✅")
-
-prompt = st.chat_input("Ask Nexus...")
+# 4. CUSTOM BOTTOM UI (One Line Gemini Bar)
+# Yahan humne column logic use kiya hai jo screen ke bottom par chipka rahega
+with st.container():
+    st.markdown('<div style="height: 80px;"></div>', unsafe_allow_html=True) # Space filler
+    
+    # Is block ko bottom mein pin karne ke liye:
+    col_plus, col_input = st.columns([0.15, 0.85])
+    
+    with col_plus:
+        with st.popover("➕", help="Upload Photo/PDF"):
+            uploaded_file = st.file_uploader("Attach", type=['png', 'jpg', 'jpeg', 'pdf'], label_visibility="collapsed")
+    
+    with col_input:
+        # Humne st.text_input use kiya hai kyunki st.chat_input columns mein nahi chalta
+        prompt = st.text_input("", placeholder="Ask Nexus anything... ✨", key="user_prompt", label_visibility="collapsed")
 
 # 5. LOGIC
 if prompt:
     img_b64 = None
-
-    if 'uploaded_file' in locals() and uploaded_file and uploaded_file.type in ['image/png', 'image/jpeg', 'image/jpg']:
+    if uploaded_file and uploaded_file.type in ['image/png', 'image/jpeg', 'image/jpg']:
         img_b64 = base64.b64encode(uploaded_file.getvalue()).decode()
 
-    st.session_state.messages.append({"role": "user", "content": f"👤 {prompt}"})
-
+    # User message
+    st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
-        st.markdown(f"👤 {prompt}")
+        st.markdown(prompt)
 
     backend_url = "https://web-production-68d0e.up.railway.app/ask"
-
+    
     with st.chat_message("assistant"):
-        message_placeholder = st.empty()
-        full_response = ""
-
+        placeholder = st.empty()
+        full_res = ""
         with st.spinner("Analyzing... 🧠"):
             try:
-                enhanced_prompt = f"System: Provide optimized code or fix errors. Do not explain features. Just solve it directly. Input: {prompt}"
-                payload = {"user_input": enhanced_prompt, "image_b64": img_b64}
-
-                response = requests.post(backend_url, json=payload, timeout=60)
-
-                if response.status_code == 200:
-                    answer = response.json().get("response", "No response from AI.")
-
+                res = requests.post(backend_url, json={"user_input": prompt, "image_b64": img_b64}, timeout=120)
+                if res.status_code == 200:
+                    answer = res.json().get("response")
                     for word in answer.split():
-                        full_response += word + " "
-                        time.sleep(0.02)
-                        message_placeholder.markdown(full_response + "▌")
-
-                    message_placeholder.markdown(full_response)
-
-                    st.session_state.messages.append({
-                        "role": "assistant",
-                        "content": full_response
-                    })
-
+                        full_res += word + " "
+                        time.sleep(0.04)
+                        placeholder.markdown(full_res + "▌")
+                    placeholder.markdown(full_res)
+                    st.session_state.messages.append({"role": "assistant", "content": full_res})
+                    # Clear input simulation by rerun
+                    st.rerun()
                 else:
-                    st.error(f"Server Error: {response.status_code}")
-
+                    st.error("Engine Timeout!")
             except Exception as e:
-                st.error("Connection Failed. Backend issue.")
+                st.error(f"Error: {e}")
 
 # Sidebar
 with st.sidebar:
-    st.title("⚙️ Nexus Flow Memory")
-
-    if st.button("🗑️ Reset All Chats"):
+    st.title("🕒 Activity")
+    if st.button("🗑️ Reset All"):
         st.session_state.messages = []
         st.rerun()
-
-    st.info("Nexus is now in **Advanced Mode**. Memory, Vision, and Internet are enabled.")
+        
