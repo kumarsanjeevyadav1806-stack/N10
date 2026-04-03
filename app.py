@@ -2,73 +2,78 @@ import streamlit as st
 import requests
 import base64
 
-# 1. Page Config
+# 1. Page Configuration
 st.set_page_config(page_title="Nexus Flow AI", page_icon="🤖", layout="centered")
 
-# 2. Gemini Style CSS (White Theme + Rounded UI)
+# 2. Gemini Style CSS (Plus icon side-by-side with Search Bar)
 st.markdown("""
     <style>
+    /* Main Background */
     .stApp { background-color: white; color: black; }
-    .stChatMessage { border-radius: 20px; border: none; background-color: #f0f4f9; padding: 15px; margin-bottom: 10px; }
     
-    /* Plus Menu Container Styling */
-    .stPopover { width: 100%; }
-    button[kind="secondary"] { 
-        border-radius: 50%; 
-        width: 45px; 
-        height: 45px; 
-        border: 1px solid #dfe1e5;
-        background-color: #f8f9fa;
+    /* Custom Chat Message Bubbles */
+    .stChatMessage { 
+        border-radius: 20px; 
+        border: none; 
+        background-color: #f0f4f9; 
+        padding: 15px; 
+        margin-bottom: 10px; 
+    }
+
+    /* Styling for the Plus Icon Button inside Popover */
+    div[data-testid="stPopover"] > button {
+        border-radius: 50% !important;
+        width: 45px !important;
+        height: 45px !important;
+        border: none !important;
+        background-color: #f0f4f9 !important;
+        font-size: 20px !important;
+        margin-top: 10px;
     }
     
-    /* Bottom Sheet Simulation Styling */
-    .menu-item {
+    /* Layout fix for Side-by-Side */
+    .chat-container {
         display: flex;
         align-items: center;
-        gap: 15px;
-        padding: 12px;
-        border-radius: 10px;
-        cursor: pointer;
-        transition: 0.3s;
+        gap: 10px;
     }
-    .menu-item:hover { background-color: #f1f3f4; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("Nexus Flow AI 🤖⚡")
+st.title("Nexus Flow AI 🤖")
+st.caption("Advanced Chat with Document & Photo Support")
 
-# 3. Memory Setup
+# 3. Chat Memory
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display History
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# 4. GEMINI PLUS MENU (Bottom Sheet Simulation)
-# Hum Popover use kar rahe hain jo click karne par Gemini menu kholega
-with st.popover("➕"):
-    st.markdown("### Attach")
-    
-    # Menu Options
-    cam_file = st.camera_input("📷 Camera")
-    gal_file = st.file_uploader("🖼️ Gallery / Files", type=['png', 'jpg', 'jpeg', 'pdf'])
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("📁 Drive"): st.info("Drive coming soon")
-    with col2:
-        if st.button("📓 Notebooks"): st.info("Notebooks coming soon")
+# 4. GEMINI STYLE INPUT BAR (Plus Icon on the side)
+# Hum columns ka use kar rahe hain taaki Plus aur Input side-by-side dikhen
+col_icon, col_input = st.columns([0.15, 0.85])
 
-# 5. CHAT INPUT
-if prompt := st.chat_input("Ask Gemini..."):
-    # Image handling if attached
+with col_icon:
+    # Camera remove kar diya gaya hai, sirf Upload options hain
+    with st.popover("➕"):
+        st.markdown("### Attach")
+        uploaded_file = st.file_uploader("Photos / Documents", type=['png', 'jpg', 'jpeg', 'pdf'], label_visibility="collapsed")
+        if uploaded_file:
+            st.success(f"Selected: {uploaded_file.name}")
+
+with col_input:
+    prompt = st.chat_input("Ask Nexus...")
+
+# 5. PROCESSING LOGIC
+if prompt:
+    # File handling (Base64 for Images)
     img_b64 = None
-    target_file = cam_file if cam_file else gal_file
-    if target_file:
-        img_b64 = base64.b64encode(target_file.getvalue()).decode()
+    if uploaded_file and uploaded_file.type in ['image/png', 'image/jpeg', 'image/jpg']:
+        img_b64 = base64.b64encode(uploaded_file.getvalue()).decode()
 
+    # Append User Message
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
@@ -87,12 +92,11 @@ if prompt := st.chat_input("Ask Gemini..."):
                 else:
                     st.error("Engine busy.")
             except:
-                st.error("Connection Failed")
+                st.error("Connection Failed. Check Railway backend.")
 
-# Sidebar
+# Sidebar for Reset
 with st.sidebar:
-    st.title("🕒 History")
-    if st.button("Clear History"):
+    if st.button("🗑️ Clear History"):
         st.session_state.messages = []
         st.rerun()
         
