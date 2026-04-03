@@ -2,8 +2,8 @@ import os
 import uvicorn
 import requests
 import io
+import base64
 from fastapi import FastAPI, Body, HTTPException
-from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from langchain_groq import ChatGroq
 from langchain.chains import ConversationChain
@@ -19,19 +19,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Configuration
+# Keys from Railway Variables
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 HF_API_KEY = os.getenv("HF_API_KEY")
 
-# Advanced Memory
+# Memory for context (ChatGPT style)
 memory = ConversationBufferWindowMemory(k=10)
 
+# ChatGPT-like Personalization (No features removed)
 template = """
 You are Nexus Flow AI, an extremely advanced AI developed by Sanjeev Kumar. 
-1. CODING: Provide full, fixed code for Python/C++.
-2. EXAMS: Tutor for SAT and BSEB.
-3. IMAGES: Tell users to use the sidebar "Generate Image" tool for drawing.
-4. STYLE: Professional yet friendly. Use emojis 🤖✨.
+1. CODING: Expert in Python, C++, and Web Dev. Provide full, fixed code always.
+2. EXAMS: Specialist tutor for SAT (Target 1500+) and BSEB Class 12 (Physics, Chem, Math).
+3. STYLE: Be concise, supportive, and professional. Use emojis 🤖✨.
+4. IMAGE: If user asks to draw or generate an image, tell them you are creating it.
 
 Current conversation:
 {history}
@@ -40,48 +41,39 @@ Nexus Flow AI:"""
 
 PROMPT = PromptTemplate(input_variables=["history", "input"], template=template)
 
-@app.get("/")
-async def root():
-    return {"status": "Nexus Flow Engine is Online"}
-
 @app.post("/ask")
-async def ask_nexus(user_input: str = Body(..., embed=True)):
-    if not GROQ_API_KEY:
-        raise HTTPException(status_code=500, detail="GROQ_API_KEY Missing!")
+async def nexus_engine(user_input: str = Body(..., embed=True)):
+    text_lower = user_input.lower()
     
-    try:
-        # FIXED: Using a more stable and powerful model
-        llm = ChatGroq(
-            temperature=0.6, 
-            groq_api_key=GROQ_API_KEY, 
-            model_name="llama-3.3-70b-versatile" 
-        )
-        nexus_chain = ConversationChain(llm=llm, memory=memory, prompt=PROMPT)
-        response = nexus_chain.predict(input=user_input)
-        return {"response": response}
-    except Exception as e:
-        # Detailed error log
-        print(f"Error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Nexus Engine is temporarily overloaded. Try again.")
+    # --- FEATURE 1: DIRECT IMAGE GENERATION ---
+    image_keywords = ["draw", "generate image", "image of", "picture of", "make a photo"]
+    if any(k in text_lower for k in image_keywords):
+        if not HF_API_KEY:
+            return {"response": "Sanjeev, please add HF_API_KEY in Railway Variables for images! 🎨"}
+        
+        API_URL = "https://api-inference.huggingface.co/models/runwayml/stable-diffusion-v1-5"
+        headers = {"Authorization": f"Bearer {HF_API_KEY}"}
+        
+        try:
+            response = requests.post(API_URL, headers=headers, json={"inputs": user_input}, timeout=100)
+            if response.status_code == 200:
+                img_str = base64.b64encode(response.content).decode()
+                return {"response": "Lo Sanjeev, aapki image tayyar hai! 🎨✨", "image": img_str}
+            else:
+                return {"response": "Model is warming up. Please try again in 10 seconds! ⏳"}
+        except:
+            return {"response": "Image generation failed. Please check connection."}
 
-@app.post("/generate-image")
-async def generate_image(image_prompt: str = Body(..., embed=True)):
-    if not HF_API_KEY:
-        raise HTTPException(status_code=500, detail="HF_API_KEY Missing!")
-    
-    API_URL = "https://api-inference.huggingface.co/models/runwayml/stable-diffusion-v1-5"
-    headers = {"Authorization": f"Bearer {HF_API_KEY}"}
-    
+    # --- FEATURE 2: ADVANCED CHAT & CODING ---
     try:
-        response = requests.post(API_URL, headers=headers, json={"inputs": image_prompt}, timeout=90)
-        if response.status_code == 200:
-            return StreamingResponse(io.BytesIO(response.content), media_type="image/jpeg")
-        else:
-            raise HTTPException(status_code=response.status_code, detail="Hugging Face is loading, try again in 10s.")
+        # Using Llama 3.3 70B for next-level intelligence
+        llm = ChatGroq(groq_api_key=GROQ_API_KEY, model_name="llama-3.3-70b-versatile", temperature=0.6)
+        nexus_chain = ConversationChain(llm=llm, memory=memory, prompt=PROMPT)
+        answer = nexus_chain.predict(input=user_input)
+        return {"response": answer}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return {"response": f"Nexus Engine Error: {str(e)}"}
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
     
