@@ -3,43 +3,36 @@ import requests
 import base64
 import time
 
-# 1. Page Configuration
+# 1. Page Configuration (Mobile-first layout)
 st.set_page_config(page_title="Nexus Flow AI", page_icon="🤖", layout="centered")
 
-# 2. Ultra-Advanced CSS (Gemini Bar + ChatGPT Copy UI)
+# 2. Ultra-Advanced CSS (Perfect Gemini Look & ChatGPT Response Style)
 st.markdown("""
     <style>
-    /* White Theme & Global Font */
-    .stApp { background-color: white; color: black; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    /* White Background & Clear Text */
+    .stApp { background-color: white; color: black; }
     
-    /* Content Padding for Bottom Bar */
+    /* Ensuring Main content scrollable above the bottom bar */
     .main .block-container {
-        padding-bottom: 160px !important;
-        max-width: 850px;
+        padding-bottom: 180px !important;
+        max-width: 800px;
     }
 
     /* ChatGPT Style Chat Bubbles */
     .stChatMessage { 
         border-radius: 20px; 
+        border: none; 
         background-color: #f7f7f8; 
+        padding: 20px; 
         margin-bottom: 15px;
-        border: 1px solid #f0f0f0;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        line-height: 1.6;
     }
-
-    /* Fixed Bottom Bar Container */
-    div[data-testid="stChatInput"] {
-        position: fixed;
-        bottom: 25px;
-        z-index: 1000;
-        padding-left: 75px !important; 
-    }
-
-    /* Floating Plus Icon Style */
+    
+    /* Plus Icon Container Fixed at Bottom */
     div[data-testid="stPopover"] {
         position: fixed;
-        bottom: 38px;
-        left: 25px;
+        bottom: 40px;
+        left: 20px;
         z-index: 1001;
     }
 
@@ -51,7 +44,7 @@ st.markdown("""
         border: none !important;
         font-size: 24px !important;
         box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        transition: 0.3s;
+        transition: 0.3s ease;
     }
     
     div[data-testid="stPopover"] > button:hover {
@@ -59,91 +52,99 @@ st.markdown("""
         transform: scale(1.05);
     }
 
-    /* Code Block Styling */
-    code {
-        background-color: #1e1e1e !important;
-        color: #d4d4d4 !important;
-        padding: 10px !important;
-        border-radius: 8px !important;
-        display: block;
-        overflow-x: auto;
+    /* Fixed Bottom Search Bar Adjustment */
+    /* Streamlit input is fixed via CSS and moved right for plus icon */
+    .stChatInput {
+        position: fixed;
+        bottom: 25px;
+        padding-left: 75px !important; /* Gemini space for plus icon */
+        z-index: 1000;
     }
     
-    /* Hide Streamlit Footer */
+    /* Copy Button Styling */
+    .copy-btn { margin-top: 10px; cursor: pointer; color: blue; font-size: 14px; }
+    
+    /* Hide default footer */
     footer {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
 
 st.title("Nexus Flow AI 🤖⚡")
-st.caption("Pro Developer Mode | Memory | Internet | Vision")
 
-# 3. Session State for History & Copy
+# 3. Memory & Session State
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display Messages with Copy Option
+# Display History with Copy Button
 for i, msg in enumerate(st.session_state.messages):
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
-        # Direct Copy Button for each message
         if msg["role"] == "assistant":
-            st.button(f"📋 Copy Response", key=f"copy_{i}", on_click=lambda text=msg["content"]: st.write(f'<script>navigator.clipboard.writeText("{text.encode("unicode_escape").decode()}");</script>', unsafe_allow_html=True))
+            # Add Direct Copy Feature
+            if st.button(f"📋 Copy", key=f"copy_{i}"):
+                st.write(f'<script>navigator.clipboard.writeText("{msg["content"].encode("unicode_escape").decode()}");</script>', unsafe_allow_html=True)
 
-# 4. BOTTOM UI (Plus + Search)
+# 4. BOTTOM UI (Plus Icon Menu & Search Input)
+
+# Plus Icon (Fixed Left Side)
 with st.popover("➕"):
-    st.markdown("### Attachments 📂")
-    uploaded_file = st.file_uploader("Photo or PDF", type=['png', 'jpg', 'jpeg', 'pdf'], label_visibility="collapsed")
+    st.markdown("### Attach Files 📂")
+    uploaded_file = st.file_uploader("Upload Image or Document", type=['png', 'jpg', 'jpeg', 'pdf'], label_visibility="collapsed")
     if uploaded_file:
-        st.success(f"File '{uploaded_file.name}' is ready! ✅")
+        st.success(f"File '{uploaded_file.name}' is attached! ✅")
 
-prompt = st.chat_input("Ask Nexus to code, fix or search... ✨")
+# Search Input (Niche Fixed)
+prompt = st.chat_input("Ask Gemini...")
 
-# 5. LOGIC (Advanced Code Expert)
+# 5. LOGIC (Advanced Code Interpreter + Direct Solve)
 if prompt:
+    # 1. Image handling
     img_b64 = None
     if uploaded_file and uploaded_file.type in ['image/png', 'image/jpeg', 'image/jpg']:
         img_b64 = base64.b64encode(uploaded_file.getvalue()).decode()
 
-    # User message
+    # 2. Append User Message
     st.session_state.messages.append({"role": "user", "content": f"👤 {prompt}"})
     with st.chat_message("user"):
         st.markdown(f"👤 {prompt}")
 
+    # 3. Call Backend
     backend_url = "https://web-production-68d0e.up.railway.app/ask"
     
     with st.chat_message("assistant"):
-        placeholder = st.empty()
-        full_res = ""
-        with st.spinner("Analyzing with God++ Engine... 🧠"):
+        message_placeholder = st.empty()
+        full_response = ""
+        
+        with st.spinner("Analyzing... 🧠"):
             try:
-                # Prompt Engineering for Code Expert
-                enhanced_prompt = f"Expert Mode: provide optimized code and fix errors. Input: {prompt}"
+                # Direct Solve Instructions added to system context in payload
+                enhanced_prompt = f"System: Provide optimized code or fix errors. Do not explain features. Just solve it directly. Input: {prompt}"
                 payload = {"user_input": enhanced_prompt, "image_b64": img_b64}
                 
-                res = requests.post(backend_url, json=payload, timeout=120)
+                response = requests.post(backend_url, json=payload, timeout=90)
                 
-                if res.status_code == 200:
-                    answer = res.json().get("response")
+                if response.status_code == 200:
+                    answer = response.json().get("response")
                     
-                    # ChatGPT Typing Effect ✍️
+                    # ChatGPT "Typing Effect" simulation ✍️
                     for word in answer.split():
-                        full_res += word + " "
-                        time.sleep(0.03)
-                        placeholder.markdown(full_res + "▌")
-                    placeholder.markdown(full_res)
-                    st.session_state.messages.append({"role": "assistant", "content": full_res})
-                    st.rerun() # Refresh to show copy button
+                        full_response += word + " "
+                        time.sleep(0.04)
+                        message_placeholder.markdown(full_response + "▌")
+                    
+                    message_placeholder.markdown(full_response)
+                    st.session_state.messages.append({"role": "assistant", "content": full_response})
+                    st.rerun() # Refresh for Copy Button to show up
                 else:
                     st.error("Engine Timeout! Please try again. 🛑")
-            except Exception as e:
-                st.error(f"Connection Error: {e} ⚠️")
+            except:
+                st.error("Connection Failed. Make sure Railway is running.")
 
 # Sidebar
 with st.sidebar:
-    st.title("🕒 Recent Activity")
-    if st.button("🗑️ Reset Chat"):
+    st.title("⚙️ Nexus Flow Memory")
+    if st.button("🗑️ Reset All Chats"):
         st.session_state.messages = []
         st.rerun()
-    st.divider()
-    st.write("🚀 **Features:**\n- Permanent Memory\n- Code Fixer\n- Image Vision\n- Internet Search")
+    st.info("Nexus is now in **Advanced Mode**. Memory, Vision, and Internet are enabled.")
     
