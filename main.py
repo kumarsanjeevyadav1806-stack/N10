@@ -1,77 +1,77 @@
-import streamlit as st
-import requests
+import os
+import uvicorn
+import sqlite3
 import base64
-import time
-import re
+from fastapi import FastAPI, Body, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from langchain_groq import ChatGroq
 
-# 1. Page Configuration
-st.set_page_config(page_title="Nexus Flow AI", page_icon="🤖", layout="centered")
+# 1. FastAPI Instance (Railway needs this at top level)
+app = FastAPI()
 
-# 2. Ultra-Clean Professional CSS
-st.markdown("""
-    <style>
-    .stApp { background-color: #ffffff; color: #1f1f1f; }
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
+# 2. CORS Setup
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-    /* Content Area */
-    .main .block-container {
-        padding-top: 2rem;
-        padding-bottom: 120px !important;
-        max-width: 800px;
-    }
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-    /* Professional Bubbles */
-    .stChatMessage { 
-        border-radius: 12px; 
-        padding: 1.5rem; 
-        margin-bottom: 1rem;
-        border: 1px solid #f0f0f0;
-    }
+# 3. Database Memory Setup
+def init_db():
+    conn = sqlite3.connect('nexus_brain.db')
+    c = conn.cursor()
+    c.execute('CREATE TABLE IF NOT EXISTS history (role TEXT, content TEXT)')
+    conn.commit()
+    conn.close()
 
-    /* Fixed Input Bar */
-    div[data-testid="stChatInput"] {
-        position: fixed;
-        bottom: 30px;
-        z-index: 1000;
-        border-radius: 24px !important;
-    }
+init_db()
 
-    /* Professional Code Block Styling */
-    code {
-        background-color: #1a1a1a !important;
-        color: #d1d1d1 !important;
-        padding: 12px !important;
-        border-radius: 8px !important;
-        display: block;
-    }
+@app.post("/ask")
+async def reasoning_engine(
+    user_input: str = Body(..., embed=True), 
+    image_b64: str = Body(None, embed=True)
+):
+    try:
+        conn = sqlite3.connect('nexus_brain.db')
+        c = conn.cursor()
+        c.execute("SELECT role, content FROM history ORDER BY rowid DESC LIMIT 8")
+        rows = c.fetchall()
+        context = "\n".join([f"{r}: {c}" for r, c in reversed(rows)])
 
-    /* Small Copy Button Styling */
-    .copy-section {
-        display: flex;
-        justify-content: flex-end;
-        margin-top: -10px;
-        margin-bottom: 10px;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+        # CHAIN OF THOUGHT PROMPT (Deep Reasoning)
+        reasoning_prompt = f"""
+        System: You are Nexus Flow AI, an advanced reasoning machine. 
+        Analyze the problem step-by-step. Provide a direct, professional, and optimized solution.
+        Context Memory: {context}
+        """
 
-st.markdown("<h2 style='text-align: center; font-weight: 800;'>Nexus Flow</h2>", unsafe_allow_html=True)
-
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-# 3. Display Messages with Smart Copy Logic
-for i, msg in enumerate(st.session_state.messages):
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
+        if image_b64:
+            # 90B Vision for high-end image analysis
+            llm = ChatGroq(model_name="llama-3.2-90b-vision-preview", groq_api_key=GROQ_API_KEY)
+            res = llm.invoke([{"role": "user", "content": [
+                {"type": "text", "text": reasoning_prompt + f"\nAnalyze image & Solve: {user_input}"},
+                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}}
+            ]}])
+        else:
+            # 70B Versatile for complex reasoning/coding
+            llm = ChatGroq(model_name="llama-3.3-70b-versatile", groq_api_key=GROQ_API_KEY)
+            res = llm.invoke(f"{reasoning_prompt}\nUser Query: {user_input}")
         
-        # --- SMART COPY LOGIC ---
-        # Sirf tabhi Copy button dikhao jab content mein Code (```) ya specific technical keywords hon
-        if msg["role"] == "assistant":
-            contains_code = "```" in msg["content"]
-            contains_technical = any(word in msg["content"].lower() for word in ["step 1", "solution:", "formula:", "result:", "code:"])
-            
-            if contains_code or contains_technical:
-                # Extracting only the code part if backticks exist, else take full content
-                code_match = re.findall(r'
+        answer = res.content
+        
+        # Save to database
+        c.execute("INSERT INTO history VALUES (?, ?)", ("user", user_input))
+        c.execute("INSERT INTO history VALUES (?, ?)", ("assistant", answer))
+        conn.commit()
+        conn.close()
+        
+        return {"response": answer}
+
+    except Exception as e:
+        return {"response": f"Thinking Engine Error: {str(e)}"}
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
