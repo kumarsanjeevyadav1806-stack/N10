@@ -4,13 +4,15 @@ import requests
 # Professional UI Setup
 st.set_page_config(page_title="Nexus Flow AI", page_icon="⚡", layout="wide")
 
-# Custom CSS for ChatGPT Look
+# Custom CSS for ChatGPT Look - FIXED parameter name here
 st.markdown("""
     <style>
     .stChatMessage { border-radius: 15px; margin-bottom: 10px; }
     .stChatInputContainer { padding-bottom: 20px; }
+    /* White theme support as requested earlier */
+    .main { background-color: white; color: black; }
     </style>
-    """, unsafe_allow_headers=True)
+    """, unsafe_allow_html=True)
 
 st.title("Nexus Flow AI ⚡")
 st.caption("Advanced Assistant for Coding, SAT & BSEB Preparation")
@@ -29,6 +31,7 @@ if prompt := st.chat_input("How can Nexus help you today?"):
     with st.chat_message("user"):
         st.markdown(prompt)
 
+    # DHYAN DEIN: Apna Railway URL sahi check karein
     backend_url = "https://web-production-68d0e.up.railway.app/ask" 
     
     with st.chat_message("assistant"):
@@ -46,7 +49,7 @@ if prompt := st.chat_input("How can Nexus help you today?"):
                     response_placeholder.markdown(answer)
                     st.session_state.messages.append({"role": "assistant", "content": answer})
                 else:
-                    st.error("Nexus Engine is busy. Please try again.")
+                    st.error("Nexus Engine is busy. Please check Railway logs.")
             except Exception as e:
                 st.error(f"Connection Error: {e}")
 
