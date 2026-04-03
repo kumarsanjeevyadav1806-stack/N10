@@ -1,6 +1,8 @@
+streamlit
 fastapi
 uvicorn
-langchain==0.1.0
+requests
 langchain-groq
-langchain-community==0.0.10
-python-multipart
+duckduckgo-search
+PyPDF2
+python-dotenv
