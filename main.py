@@ -1,5 +1,4 @@
 import os
-import uvicorn
 from fastapi import FastAPI, Body, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from langchain_groq import ChatGroq
@@ -8,7 +7,7 @@ from langchain.memory import ConversationBufferMemory
 
 app = FastAPI()
 
-# Frontend connection allow karne ke liye (CORS)
+# Streamlit connection fix
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -16,37 +15,35 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global Initialization
+# API Key handling
 api_key = os.getenv("GROQ_API_KEY")
 
-# Memory ko global rakha hai taaki bot ko purani baatein yaad rahein
-memory = ConversationBufferMemory()
+# Global memory initialization (Memory ko bahar rakhna zaroori hai)
+memory_store = ConversationBufferMemory()
 
 @app.get("/")
 async def root():
-    return {"status": "Nexus Flow Backend is Online", "api_key_set": bool(api_key)}
+    return {"status": "Nexus Flow is Live", "api_key_detected": bool(api_key)}
 
 @app.post("/ask")
 async def ask_nexus(user_input: str = Body(..., embed=True)):
     if not api_key:
-        raise HTTPException(status_code=500, detail="GROQ_API_KEY is missing!")
+        raise HTTPException(status_code=500, detail="GROQ_API_KEY missing in Railway Environment.")
     
     try:
-        # Stable Model use kar rahe hain
+        # LLM setup inside the request for stability
         llm = ChatGroq(
             temperature=0.7, 
             groq_api_key=api_key, 
-            model_name="llama3-8b-8192"
+            model_name="llama-3.3-70b-versatile"
         )
         
-        nexus_chain = ConversationChain(llm=llm, memory=memory)
+        # Chain setup with existing memory
+        nexus_chain = ConversationChain(llm=llm, memory=memory_store)
+        
         response = nexus_chain.predict(input=user_input)
         return {"response": response}
         
     except Exception as e:
+        # Error details for debugging
         raise HTTPException(status_code=500, detail=str(e))
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
-  
