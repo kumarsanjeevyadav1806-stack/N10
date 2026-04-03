@@ -1,13 +1,14 @@
 import os
+import uvicorn
 from fastapi import FastAPI, Body, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from langchain_groq import ChatGroq
 from langchain.chains import ConversationChain
-from langchain.memory import ConversationBufferMemory
+from langchain.memory import ConversationBufferWindowMemory
+from langchain.prompts import PromptTemplate
 
 app = FastAPI()
 
-# Streamlit connection fix
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -15,35 +16,59 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# API Key handling
+# Configuration
 api_key = os.getenv("GROQ_API_KEY")
 
-# Global memory initialization (Memory ko bahar rakhna zaroori hai)
-memory_store = ConversationBufferMemory()
+# Advanced Memory: Ye pichle 10 messages yaad rakhega (ChatGPT style)
+memory = ConversationBufferWindowMemory(k=10)
+
+# ChatGPT-like Personalization
+template = """
+You are Nexus Flow AI, an advanced artificial intelligence developed by Sanjeev Kumar. 
+Your goal is to be a multi-talented expert:
+1. CODING: Expert in Python, C++, and Web Dev. Provide full, fixed code.
+2. EXAMS: Expert tutor for SAT (target 1500+) and BSEB Class 12 (Maths, Physics, Chemistry).
+3. STYLE: Be concise, helpful, and professional. Use a touch of wit like a supportive peer.
+4. LANGUAGE: Answer in the language the user uses (Hinglish/English).
+
+Current conversation:
+{history}
+Human: {input}
+Nexus Flow AI:"""
+
+PROMPT = PromptTemplate(input_variables=["history", "input"], template=template)
 
 @app.get("/")
 async def root():
-    return {"status": "Nexus Flow is Live", "api_key_detected": bool(api_key)}
+    return {"status": "Nexus Flow Advanced Engine is Online"}
 
 @app.post("/ask")
 async def ask_nexus(user_input: str = Body(..., embed=True)):
     if not api_key:
-        raise HTTPException(status_code=500, detail="GROQ_API_KEY missing in Railway Environment.")
+        raise HTTPException(status_code=500, detail="API Key Missing!")
     
     try:
-        # LLM setup inside the request for stability
+        # Using the most powerful Llama 3 model available on Groq
         llm = ChatGroq(
-            temperature=0.7, 
+            temperature=0.6, 
             groq_api_key=api_key, 
-            model_name="llama-3.3-70b-versatile"
+            model_name="llama-3.3-70b-versatile" 
         )
         
-        # Chain setup with existing memory
-        nexus_chain = ConversationChain(llm=llm, memory=memory_store)
+        # Advanced Chain with custom prompt
+        nexus_chain = ConversationChain(
+            llm=llm, 
+            memory=memory,
+            prompt=PROMPT
+        )
         
         response = nexus_chain.predict(input=user_input)
         return {"response": response}
         
     except Exception as e:
-        # Error details for debugging
         raise HTTPException(status_code=500, detail=str(e))
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
+    
