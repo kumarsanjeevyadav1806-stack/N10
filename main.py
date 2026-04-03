@@ -1,6 +1,9 @@
 import os
 import uvicorn
+import requests
+import io
 from fastapi import FastAPI, Body, HTTPException
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from langchain_groq import ChatGroq
 from langchain.chains import ConversationChain
@@ -17,19 +20,20 @@ app.add_middleware(
 )
 
 # Configuration
-api_key = os.getenv("GROQ_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+HF_API_KEY = os.getenv("HF_API_KEY") # NEW: Get this from Hugging Face Settings (FREE)
 
-# Advanced Memory: Ye pichle 10 messages yaad rakhega (ChatGPT style)
+# Advanced Memory
 memory = ConversationBufferWindowMemory(k=10)
 
-# ChatGPT-like Personalization
+# ChatGPT-like Personalization + Image Capability
 template = """
-You are Nexus Flow AI, an advanced artificial intelligence developed by Sanjeev Kumar. 
-Your goal is to be a multi-talented expert:
+You are Nexus Flow AI, an extremely advanced AI developed by Sanjeev Kumar. 
+Your goal is to be a supportive expert:
 1. CODING: Expert in Python, C++, and Web Dev. Provide full, fixed code.
-2. EXAMS: Expert tutor for SAT (target 1500+) and BSEB Class 12 (Maths, Physics, Chemistry).
-3. STYLE: Be concise, helpful, and professional. Use a touch of wit like a supportive peer.
-4. LANGUAGE: Answer in the language the user uses (Hinglish/English).
+2. EXAMS: Tutor for SAT and BSEB Class 12.
+3. IMAGE GENERATION: When a user asks to "generate an image" or "draw," tell them you can do it, then provide a text prompt they can use. Also, explicitly tell them to click the "Generate Image" button on the sidebar. (Streamlit limitation).
+4. STYLE: Use a professional, supporting, peer-like tone. Use Hindustani expressions occasionally.
 
 Current conversation:
 {history}
@@ -38,33 +42,46 @@ Nexus Flow AI:"""
 
 PROMPT = PromptTemplate(input_variables=["history", "input"], template=template)
 
+# Hugging Face Model for Free Image Generation
+HF_IMAGE_MODEL = "runwayml/stable-diffusion-v1-5" 
+
 @app.get("/")
 async def root():
-    return {"status": "Nexus Flow Advanced Engine is Online"}
+    return {"status": "Nexus Flow Advanced Image Engine is Online"}
 
 @app.post("/ask")
 async def ask_nexus(user_input: str = Body(..., embed=True)):
-    if not api_key:
-        raise HTTPException(status_code=500, detail="API Key Missing!")
+    if not GROQ_API_KEY:
+        raise HTTPException(status_code=500, detail="GROQ_API_KEY Missing!")
     
     try:
-        # Using the most powerful Llama 3 model available on Groq
+        # Most powerful Llama 3 model (ChatGPT-level)
         llm = ChatGroq(
             temperature=0.6, 
-            groq_api_key=api_key, 
-            model_name="llama-3.3-70b-versatile" 
+            groq_api_key=GROQ_API_KEY, 
+            model_name="llama-3.1-405b-reasoning"
         )
-        
-        # Advanced Chain with custom prompt
-        nexus_chain = ConversationChain(
-            llm=llm, 
-            memory=memory,
-            prompt=PROMPT
-        )
-        
+        nexus_chain = ConversationChain(llm=llm, memory=memory, prompt=PROMPT)
         response = nexus_chain.predict(input=user_input)
         return {"response": response}
-        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/generate-image")
+async def generate_image(image_prompt: str = Body(..., embed=True)):
+    if not HF_API_KEY:
+        raise HTTPException(status_code=500, detail="Hugging Face API Key is missing!")
+    
+    API_URL = f"https://api-inference.huggingface.co/models/{HF_IMAGE_MODEL}"
+    headers = {"Authorization": f"Bearer {HF_API_KEY}"}
+    
+    try:
+        # Call Hugging Face API
+        response = requests.post(API_URL, headers=headers, json={"inputs": image_prompt}, timeout=90)
+        if response.status_code == 200:
+            return StreamingResponse(io.BytesIO(response.content), media_type="image/jpeg")
+        else:
+            raise HTTPException(status_code=500, detail=f"Hugging Face Error: {response.text}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
