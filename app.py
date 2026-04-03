@@ -25,17 +25,17 @@ st.title("Nexus Flow AI 🤖⚡")
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# --- FIX: Input Clearing Logic ---
+# FIX: Clearing input after send
 def handle_input():
     user_input = st.session_state.nexus_input
     if user_input:
         st.session_state.current_prompt = user_input
-        st.session_state.nexus_input = "" # Input box ko turant khali karo
+        st.session_state.nexus_input = ""
 
 if "current_prompt" not in st.session_state:
     st.session_state.current_prompt = None
 
-# Display Chat History
+# Display History
 for i, msg in enumerate(st.session_state.messages):
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
@@ -48,48 +48,49 @@ with st.container():
     col1, col2 = st.columns([0.15, 0.85])
     with col1:
         with st.popover("➕"):
-            uploaded_file = st.file_uploader("Upload", type=['png', 'jpg', 'jpeg', 'pdf'], label_visibility="collapsed")
+            uploaded_file = st.file_uploader("Upload Image/PDF", type=['png', 'jpg', 'jpeg', 'pdf'], label_visibility="collapsed")
+            if uploaded_file:
+                st.success(f"Attached: {uploaded_file.name} ✅")
     with col2:
-        # 'on_change' use kar rahe hain taaki enter dabate hi input clear ho jaye
         st.text_input("", placeholder="Ask Gemini...", key="nexus_input", on_change=handle_input, label_visibility="collapsed")
 
-# 5. PROCESSING LOGIC
+# 5. VISION & CHAT LOGIC
 if st.session_state.current_prompt:
     prompt = st.session_state.current_prompt
-    st.session_state.current_prompt = None # Reset taaki loop na bane
+    st.session_state.current_prompt = None # Reset
 
+    # --- IMAGE PROCESSING ---
     img_b64 = None
     if uploaded_file and uploaded_file.type in ['image/png', 'image/jpeg', 'image/jpg']:
         img_b64 = base64.b64encode(uploaded_file.getvalue()).decode()
 
-    # User side display
+    # User entry
     st.session_state.messages.append({"role": "user", "content": prompt})
-    st.rerun() # Turant rerun karo taaki user ka message screen par dikhe
-
-# AI Response Logic (Jab messages mein last message 'user' ka ho)
-if st.session_state.messages and st.session_state.messages[-1]["role"] == "user":
-    last_user_msg = st.session_state.messages[-1]["content"]
     
+    # Assistant Response
     with st.chat_message("assistant"):
         placeholder = st.empty()
         full_res = ""
-        with st.spinner("Analyzing... 🧠"):
+        with st.spinner("Analyzing your file... 🧠"):
             try:
                 backend_url = "https://web-production-68d0e.up.railway.app/ask"
-                res = requests.post(backend_url, json={"user_input": last_user_msg, "image_b64": None}, timeout=120)
+                # Sending prompt + image_b64 together
+                payload = {"user_input": f"Solve directly: {prompt}", "image_b64": img_b64}
+                res = requests.post(backend_url, json=payload, timeout=150)
+                
                 if res.status_code == 200:
                     answer = res.json().get("response")
                     for word in answer.split():
                         full_res += word + " "
-                        time.sleep(0.04)
+                        time.sleep(0.03)
                         placeholder.markdown(full_res + "▌")
                     placeholder.markdown(full_res)
                     st.session_state.messages.append({"role": "assistant", "content": full_res})
                     st.rerun()
                 else:
-                    st.error("Engine Busy!")
+                    st.error("Engine busy or file too large! 🛑")
             except Exception as e:
-                st.error(f"Error: {e}")
+                st.error(f"Error: {e} ⚠️")
 
 # Sidebar
 with st.sidebar:
