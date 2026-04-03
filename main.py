@@ -1,10 +1,10 @@
 import os
 import uvicorn
 import sqlite3
-import json
 from fastapi import FastAPI, Body, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from langchain_groq import ChatGroq
+from langchain_community.tools.tavily_search import TavilySearchResults
 
 app = FastAPI()
 
@@ -15,58 +15,69 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- DATABASE SETUP (SQLite) ---
+# Keys
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
+
+# --- DATABASE SETUP (Permanent Memory) ---
 def init_db():
-    conn = sqlite3.connect('nexus_chat.db')
+    conn = sqlite3.connect('nexus_brain.db')
     c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS chat_history 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, role TEXT, content TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS history 
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, role TEXT, content TEXT)''')
     conn.commit()
     conn.close()
 
 init_db()
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-
 @app.post("/ask")
-async def ask_nexus(user_input: str = Body(..., embed=True)):
+async def nexus_god_engine(
+    user_input: str = Body(..., embed=True),
+    image_b64: str = Body(None, embed=True)
+):
     try:
-        # 1. Save User Message to Database
-        conn = sqlite3.connect('nexus_chat.db')
+        conn = sqlite3.connect('nexus_brain.db')
         c = conn.cursor()
-        c.execute("INSERT INTO chat_history (role, content) VALUES (?, ?)", ("user", user_input))
         
-        # 2. Get Past Context (Last 20 messages for reasoning)
-        c.execute("SELECT role, content FROM chat_history ORDER BY id DESC LIMIT 20")
+        # 1. Fetch Last 10 messages for context
+        c.execute("SELECT role, content FROM history ORDER BY id DESC LIMIT 10")
         rows = c.fetchall()
-        history_str = "\n".join([f"{r}: {c}" for r, c in reversed(rows)])
+        past_memory = "\n".join([f"{r}: {c}" for r, c in reversed(rows)])
+
+        # 2. Vision Check (If Image)
+        if image_b64:
+            llm = ChatGroq(model_name="llama-3.2-11b-vision-preview", groq_api_key=GROQ_API_KEY)
+            res = llm.invoke([{"role": "user", "content": [
+                {"type": "text", "text": user_input},
+                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}}
+            ]}])
+            answer = res.content
         
-        # 3. Call AI with History
-        llm = ChatGroq(temperature=0.6, groq_api_key=GROQ_API_KEY, model_name="llama-3.3-70b-versatile")
-        
-        prompt = f"System: You are Nexus Flow AI by Sanjeev Kumar with long-term memory.\nHistory:\n{history_str}\nNexus Flow AI:"
-        res = llm.invoke(prompt)
-        answer = res.content
-        
-        # 4. Save AI Response to Database
-        c.execute("INSERT INTO chat_history (role, content) VALUES (?, ?)", ("assistant", answer))
+        # 3. Internet Search Check
+        elif any(word in user_input.lower() for word in ["latest", "news", "today", "weather", "search"]):
+            search = TavilySearchResults(tavily_api_key=TAVILY_API_KEY)
+            search_data = search.run(user_input)
+            llm = ChatGroq(model_name="llama-3.3-70b-versatile", groq_api_key=GROQ_API_KEY)
+            res = llm.invoke(f"Context from internet: {search_data}\n\nQuestion: {user_input}")
+            answer = res.content
+            
+        # 4. Normal Chat with Memory
+        else:
+            llm = ChatGroq(model_name="llama-3.3-70b-versatile", groq_api_key=GROQ_API_KEY)
+            prompt = f"System: You are Nexus Flow AI with long-term memory.\nMemory:\n{past_memory}\nUser: {user_input}\nNexus:"
+            res = llm.invoke(prompt)
+            answer = res.content
+
+        # 5. Save to Permanent Memory
+        c.execute("INSERT INTO history (role, content) VALUES (?, ?)", ("user", user_input))
+        c.execute("INSERT INTO history (role, content) VALUES (?, ?)", ("assistant", answer))
         conn.commit()
         conn.close()
-        
+
         return {"response": answer}
 
     except Exception as e:
-        return {"response": f"Memory Error: {str(e)}"}
-
-# New Endpoint to fetch all history (for UI)
-@app.get("/history")
-async def get_history():
-    conn = sqlite3.connect('nexus_chat.db')
-    c = conn.cursor()
-    c.execute("SELECT role, content FROM chat_history ORDER BY id ASC")
-    rows = c.fetchall()
-    conn.close()
-    return [{"role": r, "content": c} for r, c in rows]
+        return {"response": f"God Engine Error: {str(e)}"}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
