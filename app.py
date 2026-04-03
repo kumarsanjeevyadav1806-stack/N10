@@ -6,15 +6,15 @@ import time
 # 1. Page Configuration
 st.set_page_config(page_title="Nexus Flow AI", page_icon="🤖", layout="centered")
 
-# 2. Advanced CSS to Hide Default Input and Style Custom Bar
+# 2. Advanced CSS to Pin Everything to Bottom
 st.markdown("""
     <style>
-    /* Global White Theme */
+    /* White Theme */
     .stApp { background-color: white; color: black; }
     
-    /* Padding for chat history */
+    /* Content Padding so messages don't hide behind the bar */
     .main .block-container {
-        padding-bottom: 150px !important;
+        padding-bottom: 120px !important;
         max-width: 800px;
     }
 
@@ -25,27 +25,31 @@ st.markdown("""
         margin-bottom: 12px;
     }
 
-    /* HIDING ORIGINAL CHAT INPUT - VERY IMPORTANT */
-    .stChatInput { display: none !important; }
-
-    /* OUR CUSTOM GEMINI BAR (Fixed at Bottom) */
-    .gemini-footer {
+    /* THE MAGIC: Pinning the column container to the bottom */
+    [data-testid="stVerticalBlock"] > div:last-child {
         position: fixed;
-        bottom: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 90%;
-        max-width: 750px;
-        background: #f0f4f9;
-        border-radius: 35px;
-        padding: 5px 15px;
-        display: flex;
-        align-items: center;
-        z-index: 9999;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background-color: white;
+        padding: 20px 10% 40px 10%;
+        z-index: 1000;
+        border-top: 1px solid #f0f2f6;
     }
     
+    /* Plus Button Styling */
+    div[data-testid="stPopover"] > button {
+        border-radius: 50% !important;
+        width: 45px !important;
+        height: 45px !important;
+        background-color: #f0f4f9 !important;
+        border: none !important;
+        font-size: 20px !important;
+    }
+
+    /* Hide Streamlit Footer */
     footer {visibility: hidden;}
+    #MainMenu {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -55,7 +59,7 @@ st.title("Nexus Flow AI 🤖⚡")
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display Messages
+# Display History
 for i, msg in enumerate(st.session_state.messages):
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
@@ -63,22 +67,21 @@ for i, msg in enumerate(st.session_state.messages):
             if st.button(f"📋 Copy", key=f"cp_{i}"):
                 st.write(f'<script>navigator.clipboard.writeText("{msg["content"].encode("unicode_escape").decode()}");</script>', unsafe_allow_html=True)
 
-# 4. GEMINI STYLE BOTTOM UI (Fixed & Aligned)
-# Yahan hum columns ka use kar rahe hain jo Streamlit ke "Bottom" block mein default align honge
+# 4. FIXED BOTTOM BAR (Plus + Search Side-by-Side)
+# Ye container hamesha screen ke niche hi rahega
 with st.container():
-    # Humne layout ko columns mein dala hai jo screen ke bottom par chipka rahega
-    col_plus, col_input = st.columns([0.15, 0.85])
+    col_plus, col_search = st.columns([0.15, 0.85])
     
     with col_plus:
         with st.popover("➕"):
             st.markdown("### Attach 📂")
             uploaded_file = st.file_uploader("Upload", type=['png', 'jpg', 'jpeg', 'pdf'], label_visibility="collapsed")
     
-    with col_input:
-        # Gemini ki tarah "Enter" dabane par message jayega
+    with col_search:
+        # text_input Enter dabane par trigger hota hai
         prompt = st.text_input("", placeholder="Ask Nexus anything... ✨", key="nexus_input", label_visibility="collapsed")
 
-# 5. LOGIC (Direct Solve)
+# 5. LOGIC
 if prompt:
     img_b64 = None
     if uploaded_file and uploaded_file.type in ['image/png', 'image/jpeg', 'image/jpg']:
@@ -97,8 +100,8 @@ if prompt:
         full_res = ""
         with st.spinner("Analyzing... 🧠"):
             try:
-                # Direct Solve instruction
-                payload = {"user_input": f"Solve directly: {prompt}", "image_b64": img_b64}
+                # Instruction to backend to be direct
+                payload = {"user_input": f"Directly solve: {prompt}", "image_b64": img_b64}
                 res = requests.post(backend_url, json=payload, timeout=120)
                 
                 if res.status_code == 200:
@@ -110,7 +113,7 @@ if prompt:
                         placeholder.markdown(full_res + "▌")
                     placeholder.markdown(full_res)
                     st.session_state.messages.append({"role": "assistant", "content": full_res})
-                    st.rerun() # To clear text input
+                    st.rerun() # Refresh to clear input box
                 else:
                     st.error("Engine Busy! 🛑")
             except Exception as e:
@@ -119,7 +122,7 @@ if prompt:
 # Sidebar
 with st.sidebar:
     st.title("🕒 Activity")
-    if st.button("🗑️ Reset Chat"):
+    if st.button("🗑️ Reset All Chats"):
         st.session_state.messages = []
         st.rerun()
         
