@@ -3,45 +3,52 @@ import requests
 import base64
 import time
 
-# 1. Page Configuration
+# 1. Page Config
 st.set_page_config(page_title="Nexus Flow AI", page_icon="🤖", layout="centered")
 
-# 2. Heavy Duty CSS (Custom Bottom Bar Fix)
+# 2. Super Advanced CSS (Plus Icon on Right Side Overlay)
 st.markdown("""
     <style>
     .stApp { background-color: white; color: black; }
     
-    /* Content Area Padding */
+    /* Chat Area Padding */
     .main .block-container {
         padding-bottom: 120px !important;
-        max-width: 800px;
     }
 
-    /* ChatGPT Style Messages */
+    /* Message Styling */
     .stChatMessage { border-radius: 15px; background-color: #f7f7f8; margin-bottom: 10px; }
 
-    /* Custom Floating Bottom Bar */
-    .bottom-bar-container {
+    /* Gemini Style Search Bar Fix */
+    /* Hum chat input ke right side mein jagah bana rahe hain */
+    div[data-testid="stChatInput"] {
         position: fixed;
         bottom: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 90%;
-        max-width: 750px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        z-index: 9999;
-        background: white;
-        padding: 10px;
-        border-radius: 30px;
-        border: 1px solid #dfe1e5;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        z-index: 1000;
+        padding-right: 70px !important; 
     }
 
-    /* Hide Streamlit Native Input if it exists */
-    .stChatInput { display: none !important; }
+    /* Plus Icon Fixed at Bottom RIGHT */
+    div[data-testid="stPopover"] {
+        position: fixed;
+        bottom: 30px;
+        right: 30px; /* Right side positioning */
+        z-index: 1001;
+    }
+
+    div[data-testid="stPopover"] > button {
+        border-radius: 50% !important;
+        width: 50px !important;
+        height: 50px !important;
+        background-color: #f0f4f9 !important;
+        border: 1px solid #dfe1e5 !important;
+        font-size: 24px !important;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    }
     
+    /* Copy Button */
+    .stButton > button { border-radius: 10px; height: 30px; font-size: 12px; }
+
     footer {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
@@ -52,7 +59,7 @@ st.title("Nexus Flow AI 🤖⚡")
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display History
+# Display Messages
 for i, msg in enumerate(st.session_state.messages):
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
@@ -60,29 +67,22 @@ for i, msg in enumerate(st.session_state.messages):
             if st.button(f"📋 Copy", key=f"cp_{i}"):
                 st.write(f'<script>navigator.clipboard.writeText("{msg["content"].encode("unicode_escape").decode()}");</script>', unsafe_allow_html=True)
 
-# 4. CUSTOM BOTTOM UI (One Line Gemini Bar)
-# Yahan humne column logic use kiya hai jo screen ke bottom par chipka rahega
-with st.container():
-    st.markdown('<div style="height: 80px;"></div>', unsafe_allow_html=True) # Space filler
-    
-    # Is block ko bottom mein pin karne ke liye:
-    col_plus, col_input = st.columns([0.15, 0.85])
-    
-    with col_plus:
-        with st.popover("➕", help="Upload Photo/PDF"):
-            uploaded_file = st.file_uploader("Attach", type=['png', 'jpg', 'jpeg', 'pdf'], label_visibility="collapsed")
-    
-    with col_input:
-        # Humne st.text_input use kiya hai kyunki st.chat_input columns mein nahi chalta
-        prompt = st.text_input("", placeholder="Ask Nexus anything... ✨", key="user_prompt", label_visibility="collapsed")
+# 4. BOTTOM UI (Plus on Right + Search Bar)
 
-# 5. LOGIC
+# Plus Icon (Right Side)
+with st.popover("➕"):
+    st.markdown("### Attach 📂")
+    uploaded_file = st.file_uploader("Upload", type=['png', 'jpg', 'jpeg', 'pdf'], label_visibility="collapsed")
+
+# Search Bar (Default width minus right padding)
+prompt = st.chat_input("Ask Nexus... ✨")
+
+# 5. LOGIC (Direct Solve)
 if prompt:
     img_b64 = None
     if uploaded_file and uploaded_file.type in ['image/png', 'image/jpeg', 'image/jpg']:
         img_b64 = base64.b64encode(uploaded_file.getvalue()).decode()
 
-    # User message
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
@@ -92,28 +92,21 @@ if prompt:
     with st.chat_message("assistant"):
         placeholder = st.empty()
         full_res = ""
-        with st.spinner("Analyzing... 🧠"):
+        with st.spinner("Solving... 🧠"):
             try:
-                res = requests.post(backend_url, json={"user_input": prompt, "image_b64": img_b64}, timeout=120)
+                # Direct instruction to backend
+                res = requests.post(backend_url, json={"user_input": f"Directly solve: {prompt}", "image_b64": img_b64}, timeout=120)
                 if res.status_code == 200:
                     answer = res.json().get("response")
                     for word in answer.split():
                         full_res += word + " "
-                        time.sleep(0.04)
+                        time.sleep(0.03)
                         placeholder.markdown(full_res + "▌")
                     placeholder.markdown(full_res)
                     st.session_state.messages.append({"role": "assistant", "content": full_res})
-                    # Clear input simulation by rerun
                     st.rerun()
                 else:
-                    st.error("Engine Timeout!")
+                    st.error("Engine Busy!")
             except Exception as e:
                 st.error(f"Error: {e}")
-
-# Sidebar
-with st.sidebar:
-    st.title("🕒 Activity")
-    if st.button("🗑️ Reset All"):
-        st.session_state.messages = []
-        st.rerun()
-        
+                
