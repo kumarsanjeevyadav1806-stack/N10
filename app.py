@@ -6,67 +6,75 @@ import time
 # 1. Page Configuration
 st.set_page_config(page_title="Nexus Flow AI", page_icon="🤖", layout="centered")
 
-# 2. Gemini Hybrid CSS (Fixed Bottom Bar)
+# 2. Refined CSS (Fixes Visibility Problem)
 st.markdown("""
     <style>
+    /* Global White Theme */
     .stApp { background-color: white; color: black; }
     
-    /* Content Padding */
-    .main .block-container { padding-bottom: 150px; max-width: 850px; }
-
-    /* Chat Bubbles */
-    .stChatMessage { border-radius: 15px; background-color: #f7f7f8; margin-bottom: 10px; }
-    
-    /* Fixed Plus Icon at Bottom Left */
-    div[data-testid="stPopover"] {
-        position: fixed;
-        bottom: 32px;
-        left: 20px;
-        z-index: 1001;
+    /* Padding for Chat History */
+    .main .block-container {
+        padding-bottom: 100px;
+        max-width: 800px;
     }
 
+    /* ChatGPT Style Messages */
+    .stChatMessage { 
+        border-radius: 15px; 
+        background-color: #f7f7f8; 
+        margin-bottom: 10px; 
+    }
+
+    /* Plus Button Popover Styling */
     div[data-testid="stPopover"] > button {
         border-radius: 50% !important;
-        width: 48px !important;
-        height: 48px !important;
+        width: 45px !important;
+        height: 45px !important;
         background-color: #f0f4f9 !important;
         border: 1px solid #dfe1e5 !important;
-        font-size: 22px !important;
+        font-size: 20px !important;
     }
 
-    /* Fixed Search Bar at Bottom */
-    .stChatInput {
+    /* Fixed Layout for Bottom Bar */
+    .bottom-bar {
         position: fixed;
-        bottom: 20px;
-        padding-left: 65px !important; /* Space for Plus icon */
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: white;
+        padding: 10px 20px;
         z-index: 1000;
+        border-top: 1px solid #eee;
     }
     </style>
     """, unsafe_allow_html=True)
 
 st.title("Nexus Flow AI 🤖⚡")
 
-# 3. Session State for Chat
+# 3. Session State for History
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display History
+# Display Messages
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# 4. BOTTOM UI (Plus + Search)
-with st.popover("➕"):
-    st.markdown("### Attachments")
-    uploaded_file = st.file_uploader("Photo or PDF", type=['png', 'jpg', 'jpeg', 'pdf'], label_visibility="collapsed")
-    if uploaded_file:
-        st.success(f"Attached: {uploaded_file.name}")
+# 4. FIXED BOTTOM UI (Plus + Search Bar Side-by-Side)
+# We use a container to keep them together at the bottom
+with st.container():
+    col_icon, col_input = st.columns([0.15, 0.85])
+    
+    with col_icon:
+        with st.popover("➕"):
+            st.markdown("### Attachments")
+            uploaded_file = st.file_uploader("Photo/PDF", type=['png', 'jpg', 'jpeg', 'pdf'], label_visibility="collapsed")
+    
+    with col_input:
+        prompt = st.chat_input("Ask Nexus anything...")
 
-prompt = st.chat_input("Ask Nexus anything...")
-
-# 5. PROCESSING LOGIC
+# 5. LOGIC
 if prompt:
-    # Handle Image
     img_b64 = None
     if uploaded_file and uploaded_file.type in ['image/png', 'image/jpeg', 'image/jpg']:
         img_b64 = base64.b64encode(uploaded_file.getvalue()).decode()
@@ -75,20 +83,19 @@ if prompt:
     with st.chat_message("user"):
         st.markdown(prompt)
 
+    # Backend URL (Ensure this matches your Railway)
     backend_url = "https://web-production-68d0e.up.railway.app/ask"
     
     with st.chat_message("assistant"):
         placeholder = st.empty()
         full_res = ""
-        with st.spinner("Processing..."):
+        with st.spinner("Analyzing..."):
             try:
                 payload = {"user_input": prompt, "image_b64": img_b64}
                 res = requests.post(backend_url, json=payload, timeout=120)
                 
                 if res.status_code == 200:
                     answer = res.json().get("response")
-                    
-                    # ChatGPT Typing Effect
                     for word in answer.split():
                         full_res += word + " "
                         time.sleep(0.04)
@@ -96,15 +103,14 @@ if prompt:
                     placeholder.markdown(full_res)
                     st.session_state.messages.append({"role": "assistant", "content": full_res})
                 else:
-                    st.error("Backend Error!")
+                    st.error("Server is busy. Check Railway logs.")
             except Exception as e:
-                st.error(f"Connection Failed: {e}")
+                st.error(f"Error: {e}")
 
 # Sidebar
 with st.sidebar:
-    st.title("⚙️ Nexus Memory")
-    if st.button("🗑️ Reset Permanent Chat"):
+    st.title("🕒 Recent Activity")
+    if st.button("🗑️ Clear History"):
         st.session_state.messages = []
         st.rerun()
-    st.info("Nexus Flow has 'God Level' Memory enabled.")
-    
+        
