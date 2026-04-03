@@ -1,98 +1,66 @@
 import streamlit as st
 import requests
-import io
-from PIL import Image
+import base64
 
-# UI Setup
-st.set_page_config(page_title="Nexus Flow AI", page_icon="⚡", layout="wide")
+st.set_page_config(page_title="Nexus Flow AI", page_icon="🤖", layout="centered")
 
-# Custom CSS for ChatGPT Look + White Theme Support
+# Custom CSS for clean UI
 st.markdown("""
     <style>
-    .stChatMessage { border-radius: 15px; margin-bottom: 10px; }
-    .stChatInputContainer { padding-bottom: 20px; }
-    /* White theme support requested earlier */
-    .main { background-color: white; color: black; }
+    .stApp { background-color: #ffffff; }
+    .stChatMessage { border-radius: 15px; }
+    img { border-radius: 10px; margin-top: 10px; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("Nexus Flow AI ⚡")
-st.caption("Advanced Assistant for Coding, SAT, BSEB, and now Image Generation!")
+st.title("Nexus Flow AI 🤖✨")
+st.caption("Now with Direct Image Generation | Developed by Sanjeev")
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-if "current_image" not in st.session_state:
-    st.session_state.current_image = None
-
-# Display History
+# Display Chat History
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
+        if "image" in message:
+            st.image(message["image"])
 
-# --- CHAT INPUT & PROCESSOR ---
-if prompt := st.chat_input("How can Nexus help you today?"):
+# User Input
+if prompt := st.chat_input("Ask me to 'Draw a futuristic Bihar'..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # DHYAN DEIN: Apna Railway URL sahi check karein
     backend_url = "https://web-production-68d0e.up.railway.app/ask" 
     
     with st.chat_message("assistant"):
-        response_placeholder = st.empty()
-        with st.spinner("Nexus is processing..."):
+        with st.spinner("Nexus is processing... ⚡"):
             try:
-                response = requests.post(
-                    backend_url, 
-                    json={"user_input": prompt},
-                    timeout=100
-                )
-                
+                response = requests.post(backend_url, json={"user_input": prompt}, timeout=120)
                 if response.status_code == 200:
-                    answer = response.json().get("response")
-                    response_placeholder.markdown(answer)
-                    st.session_state.messages.append({"role": "assistant", "content": answer})
+                    data = response.json()
+                    answer = data.get("response")
+                    img_data = data.get("image") # Base64 image string
+
+                    st.markdown(answer)
+                    
+                    msg_to_store = {"role": "assistant", "content": answer}
+                    
+                    if img_data:
+                        # Convert Base64 back to bytes for display
+                        decoded_img = base64.b64decode(img_data)
+                        st.image(decoded_img)
+                        msg_to_store["image"] = decoded_img
+                    
+                    st.session_state.messages.append(msg_to_store)
                 else:
-                    st.error("Nexus Engine is busy. Please try again.")
+                    st.error("Server is busy. Try again!")
             except Exception as e:
                 st.error(f"Connection Error: {e}")
 
-# --- SIDEBAR TOOLS ---
 with st.sidebar:
-    st.title("🛡️ Nexus Control Center")
-    st.write("---")
-    if st.button("🗑️ Clear All Memory"):
+    if st.button("Clear Chat"):
         st.session_state.messages = []
-        st.session_state.current_image = None
-        st.success("Memory Wiped!")
         st.rerun()
-    
-    st.write("---")
-    st.info("**Active Modes:**\n- 🐍 Python/C++ Expert\n- 🎓 SAT/BSEB Tutor\n- 🎬 Video Editing Tips\n- 🎨 Image Generator")
-
-    # Image Generation Tool
-    st.write("---")
-    st.subheader("🎨 Image Generation")
-    img_prompt = st.text_input("Describe the image you want to generate:")
-    if st.button("Generate Image"):
-        if not img_prompt:
-            st.warning("Please enter a prompt for the image.")
-        else:
-            with st.spinner("Nexus is drawing... (Takes ~30 seconds)"):
-                backend_img_url = "https://web-production-68d0e.up.railway.app/generate-image" 
-                try:
-                    response = requests.post(backend_img_url, json={"image_prompt": img_prompt}, timeout=120)
-                    if response.status_code == 200:
-                        image_data = response.content
-                        st.session_state.current_image = image_data
-                    else:
-                        st.error("Image generation failed. Check API Keys.")
-                except Exception as e:
-                    st.error(f"Image Connection Error: {e}")
-
-    # Display Current Image
-    if st.session_state.current_image:
-        image = Image.open(io.BytesIO(st.session_state.current_image))
-        st.image(image, caption="Generated by Nexus Flow AI", use_column_width=True)
         
