@@ -1,92 +1,77 @@
 import streamlit as st
+import requests
+import base64
 import time
-import random
+import re
 
-# --- 1. Advanced Page Config ---
-st.set_page_config(
-    page_title="Nexus Flow AI",
-    page_icon="🚀",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# 1. Page Configuration
+st.set_page_config(page_title="Nexus Flow AI", page_icon="🤖", layout="centered")
 
-# --- 2. Professional CSS (White Theme & Bottom Search) ---
+# 2. Ultra-Clean Professional CSS
 st.markdown("""
     <style>
-    /* White Theme & Typography */
-    .stApp {
-        background-color: #FFFFFF;
-        color: #202124;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    }
-    
-    /* Main Container Padding for Bottom Bar */
+    .stApp { background-color: #ffffff; color: #1f1f1f; }
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+
+    /* Content Area */
     .main .block-container {
-        padding-bottom: 120px;
-        max-width: 900px;
+        padding-top: 2rem;
+        padding-bottom: 120px !important;
+        max-width: 800px;
     }
 
-    /* Professional Message Bubbles */
-    div[data-testid="stChatMessage"] {
-        background-color: #f8f9fa;
-        border: 1px solid #e0e0e0;
-        border_radius: 20px;
-        padding: 10px 20px;
-        margin-bottom: 15px;
+    /* Professional Bubbles */
+    .stChatMessage { 
+        border-radius: 12px; 
+        padding: 1.5rem; 
+        margin-bottom: 1rem;
+        border: 1px solid #f0f0f0;
     }
 
-    /* Fixed Bottom Search Bar (Gemini Style) */
+    /* Fixed Input Bar */
     div[data-testid="stChatInput"] {
         position: fixed;
-        bottom: 25px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 80% !important;
-        background-color: #ffffff;
+        bottom: 30px;
         z-index: 1000;
-        border-radius: 50px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-        border: 1px solid #ddd;
+        border-radius: 24px !important;
     }
 
-    /* Custom Scrollbar */
-    ::-webkit-scrollbar {
-        width: 8px;
-    }
-    ::-webkit-scrollbar-thumb {
-        background: #ddd;
-        border-radius: 10px;
+    /* Professional Code Block Styling */
+    code {
+        background-color: #1a1a1a !important;
+        color: #d1d1d1 !important;
+        padding: 12px !important;
+        border-radius: 8px !important;
+        display: block;
     }
 
-    /* Hide Streamlit elements */
-    #MainMenu, footer, header {visibility: hidden;}
+    /* Small Copy Button Styling */
+    .copy-section {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: -10px;
+        margin-bottom: 10px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. Nexus Flow Brain (Internal Logic) ---
-class NexusBrain:
-    @staticmethod
-    def get_thinking_steps():
-        return [
-            "Initializing neural pathways... 🧠",
-            "Scanning context for hidden patterns... 🔍",
-            "Consulting coding repositories... 💻",
-            "Applying logical constraints... ⚖️",
-            "Finalizing high-precision response... ✨"
-        ]
+st.markdown("<h2 style='text-align: center; font-weight: 800;'>Nexus Flow</h2>", unsafe_allow_html=True)
 
-    @staticmethod
-    def generate_expert_response(prompt, mode):
-        # Professional Emojis and Direct Logic
-        if mode == "Coding Mode":
-            return f"### Optimized Code Solution 💻\n\n
-http://googleusercontent.com/immersive_entry_chip/0
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-### Is Updated Code mein kya naya hai?
-1.  **Bottom Search Bar (Centered):** Ise screen ke niche center mein fix kiya gaya hai, bilkul Gemini ya ChatGPT ki tarah.
-2.  **Integrated Thinking:** Jab aap message bhejenge, toh ek expandable "Thinking" menu aayega jo dikhayega ki AI kaise soch raha hai.
-3.  **Modern Sidebar:** Isme modes select karne ka saaf option hai.
-4.  **Expert Coding:** "Coding Mode" select karne par yeh direct code block ke sath response dega.
-5.  **No Talkative Filler:** AI seedha point par baat karega aur professional emojis use karega.
-
-Aap bas is code ko copy karke apni `app.py` mein paste karein aur run karein. Ab aapka chatbot "Next Level" tayyar hai! 🚀
+# 3. Display Messages with Smart Copy Logic
+for i, msg in enumerate(st.session_state.messages):
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
+        
+        # --- SMART COPY LOGIC ---
+        # Sirf tabhi Copy button dikhao jab content mein Code (```) ya specific technical keywords hon
+        if msg["role"] == "assistant":
+            contains_code = "```" in msg["content"]
+            contains_technical = any(word in msg["content"].lower() for word in ["step 1", "solution:", "formula:", "result:", "code:"])
+            
+            if contains_code or contains_technical:
+                # Extracting only the code part if backticks exist, else take full content
+                code_match = re.findall(r'
