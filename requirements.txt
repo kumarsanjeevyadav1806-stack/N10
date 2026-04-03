@@ -1,9 +1,6 @@
 fastapi
 uvicorn
+langchain==0.1.0
 langchain-groq
-langchain
-langchain-community
+langchain-community==0.0.10
 python-multipart
-requests
-streamlit
-
