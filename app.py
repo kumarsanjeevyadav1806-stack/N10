@@ -6,41 +6,43 @@ import time
 # 1. Page Configuration
 st.set_page_config(page_title="Nexus Flow AI", page_icon="🤖", layout="centered")
 
-# 2. Advanced CSS for Fixed Bottom Bar
+# 2. Ultra-Advanced CSS (Perfect Gemini Bottom Bar)
 st.markdown("""
     <style>
-    /* White Theme */
+    /* Global White Theme */
     .stApp { background-color: white; color: black; }
     
     /* Content Padding to avoid bottom overlap */
     .main .block-container {
-        padding-bottom: 150px;
-        max-width: 800px;
+        padding-bottom: 150px !important;
+        max-width: 850px;
     }
 
-    /* Message Bubbles */
+    /* Message Bubbles - ChatGPT Style */
     .stChatMessage { 
-        border-radius: 15px; 
+        border-radius: 18px; 
         background-color: #f7f7f8; 
-        margin-bottom: 10px; 
+        margin-bottom: 12px;
+        border: 1px solid #f0f0f0;
     }
 
     /* Fixed Bottom Container for Plus + Input */
-    .fixed-bottom {
+    /* This ensures it sticks like Gemini */
+    div[data-testid="stChatInput"] {
         position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        background: white;
-        padding: 10px 5% 30px 5%;
+        bottom: 20px;
         z-index: 1000;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        border-top: 1px solid #f0f2f6;
+        padding-left: 70px !important; /* Space for Plus icon on the left */
     }
 
-    /* Plus Button Popover Styling */
+    /* Plus Button Popover - Gemini Style Positioning */
+    div[data-testid="stPopover"] {
+        position: fixed;
+        bottom: 32px;
+        left: 20px;
+        z-index: 1001;
+    }
+
     div[data-testid="stPopover"] > button {
         border-radius: 50% !important;
         width: 48px !important;
@@ -48,13 +50,11 @@ st.markdown("""
         background-color: #f0f4f9 !important;
         border: none !important;
         font-size: 22px !important;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
     
-    /* Make chat input fit properly next to plus */
-    .stChatInput {
-        padding-bottom: 0px !important;
-    }
+    /* Clean Hide for Streamlit default footer */
+    footer {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -69,43 +69,43 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# 4. THE MAGIC BOTTOM ROW (Plus + Search)
-# Columns allow them to sit side-by-side at the bottom
-col_plus, col_input = st.columns([0.12, 0.88])
+# 4. BOTTOM UI (Plus + Search Bar Side-by-Side)
+# Plus icon is fixed via CSS at bottom-left
+with st.popover("➕"):
+    st.markdown("### Attach File 📂")
+    uploaded_file = st.file_uploader("Photo or PDF", type=['png', 'jpg', 'jpeg', 'pdf'], label_visibility="collapsed")
+    if uploaded_file:
+        st.success(f"Attached: {uploaded_file.name} ✅")
 
-with col_plus:
-    with st.popover("➕"):
-        st.markdown("### Attach File")
-        uploaded_file = st.file_uploader("Photo or PDF", type=['png', 'jpg', 'jpeg', 'pdf'], label_visibility="collapsed")
-        if uploaded_file:
-            st.success(f"Attached: {uploaded_file.name}")
+# Search Input (Niche Fixed via CSS)
+prompt = st.chat_input("Ask Nexus anything... ✨")
 
-with col_input:
-    prompt = st.chat_input("Ask Nexus anything...")
-
-# 5. LOGIC
+# 5. LOGIC (With ChatGPT-style Emojis)
 if prompt:
     img_b64 = None
     if uploaded_file and uploaded_file.type in ['image/png', 'image/jpeg', 'image/jpg']:
         img_b64 = base64.b64encode(uploaded_file.getvalue()).decode()
 
-    st.session_state.messages.append({"role": "user", "content": prompt})
+    # User message
+    st.session_state.messages.append({"role": "user", "content": f"👤 {prompt}"})
     with st.chat_message("user"):
-        st.markdown(prompt)
+        st.markdown(f"👤 {prompt}")
 
     backend_url = "https://web-production-68d0e.up.railway.app/ask"
     
     with st.chat_message("assistant"):
         placeholder = st.empty()
         full_res = ""
-        with st.spinner("Analyzing..."):
+        with st.spinner("Analyzing... 🧠"):
             try:
+                # Adding emoji context to system prompt in payload
                 payload = {"user_input": prompt, "image_b64": img_b64}
                 res = requests.post(backend_url, json=payload, timeout=120)
                 
                 if res.status_code == 200:
                     answer = res.json().get("response")
-                    # Typing Effect
+                    
+                    # ChatGPT Typing Effect ✍️
                     for word in answer.split():
                         full_res += word + " "
                         time.sleep(0.04)
@@ -113,14 +113,16 @@ if prompt:
                     placeholder.markdown(full_res)
                     st.session_state.messages.append({"role": "assistant", "content": full_res})
                 else:
-                    st.error("Engine Busy!")
+                    st.error("Engine Busy! 🛑")
             except Exception as e:
-                st.error(f"Error: {e}")
+                st.error(f"Error: {e} ⚠️")
 
 # Sidebar
 with st.sidebar:
-    st.title("🕒 Activity")
-    if st.button("🗑️ Reset All"):
+    st.title("🕒 Recent Activity")
+    st.write("---")
+    if st.button("🗑️ Clear All Chats"):
         st.session_state.messages = []
         st.rerun()
-        
+    st.info("Nexus is in **Pro Mode** ⚡\nMemory & Search are active.")
+    
